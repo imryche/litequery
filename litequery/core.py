@@ -1,18 +1,13 @@
-from enum import Enum, auto
+from enum import Enum
 import re
 from dataclasses import dataclass, make_dataclass
 import aiosqlite
 
 
-class Op(Enum):
-    SELECT = auto()
-    INSERT = auto()
-
-
-OP_TYPES = {
-    "": Op.SELECT,
-    "!": Op.INSERT,
-}
+class Op(str, Enum):
+    SELECT = ""
+    MODIFY = "!"
+    INSERT_RETURNING = "<!"
 
 
 @dataclass
@@ -29,12 +24,12 @@ def parse_queries(path):
     raw_queries = re.findall(r"-- name: (.+)\n([\s\S]*?);", content)
     queries = []
     for query_name, sql in raw_queries:
-        match = re.match(r"^([a-z_][a-z0-9_-]*)([!]?)$", query_name)
+        match = re.match(r"^([a-z_][a-z0-9_-]*)(!|<!)?$", query_name)
         if not match:
             raise NameError(f'Invalid query name: "{query_name}"')
         query_name = match.group(1)
-        op_symbol = match.group(2)
-        op = OP_TYPES.get(op_symbol, Op.SELECT)
+        op_symbol = match.group(2) or ""
+        op = Op(op_symbol)
 
         args = re.findall(r":(\w+)", sql)
         query = Query(name=query_name, sql=sql, args=args, op=op)
@@ -65,9 +60,12 @@ class Litequery:
             async with conn.execute(query.sql, kwargs) as cur:
                 if query.op == Op.SELECT:
                     return await cur.fetchall()
-                if query.op == Op.INSERT:
+                if query.op == Op.MODIFY:
                     await conn.commit()
                     return cur.rowcount
+                if query.op == Op.INSERT_RETURNING:
+                    await conn.commit()
+                    return cur.lastrowid
 
         return query_method
 

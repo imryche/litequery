@@ -13,7 +13,7 @@ order by
     id desc
 limit 1;
 
--- name: users_insert!
+-- name: users_insert<!
 insert into users (name)
     values (:name);
 
