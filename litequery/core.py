@@ -61,11 +61,12 @@ class Litequery:
 
     def _create_method(self, query: Query):
         async def query_method(**kwargs):
-            conn = await self.conn()
+            conn = await self.get_connection()
             async with conn.execute(query.sql, kwargs) as cur:
                 if query.op == Op.SELECT:
                     return await cur.fetchall()
                 if query.op == Op.INSERT:
+                    await conn.commit()
                     return cur.rowcount
 
         return query_method
@@ -83,7 +84,7 @@ class Litequery:
             return
         await self._conn.close()
 
-    async def conn(self):
+    async def get_connection(self):
         if self._conn is None:
             await self.connect()
         return self._conn
