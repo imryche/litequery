@@ -4,7 +4,7 @@ select
 from
     users;
 
--- name: users_first
+-- name: users_first^
 select
     *
 from

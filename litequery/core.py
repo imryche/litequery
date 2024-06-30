@@ -6,6 +6,7 @@ import aiosqlite
 
 class Op(str, Enum):
     SELECT = ""
+    SELECT_ONE = "^"
     MODIFY = "!"
     INSERT_RETURNING = "<!"
 
@@ -24,8 +25,9 @@ def parse_queries(path):
     raw_queries = re.findall(r"-- name: (.+)\n([\s\S]*?);", content)
     queries = []
     for query_name, sql in raw_queries:
-        op_pattern = "|".join(op.value for op in Op)
-        match = re.match(rf"^([a-z_][a-z0-9_-]*)({op_pattern})?$", query_name)
+        op_pattern = "|".join("\\" + "\\".join(list(op.value)) for op in Op if op.value)
+        pattern = rf"^([a-z_][a-z0-9_-]*)({op_pattern})?$"
+        match = re.match(pattern, query_name)
         if not match:
             raise NameError(f'Invalid query name: "{query_name}"')
         query_name = match.group(1)
@@ -61,6 +63,8 @@ class Litequery:
             async with conn.execute(query.sql, kwargs) as cur:
                 if query.op == Op.SELECT:
                     return await cur.fetchall()
+                if query.op == Op.SELECT_ONE:
+                    return await cur.fetchone()
                 if query.op == Op.MODIFY:
                     await conn.commit()
                     return cur.rowcount
