@@ -22,11 +22,13 @@ class Query:
 def parse_queries(path):
     with open(path) as f:
         content = f.read()
+
     raw_queries = re.findall(r"-- name: (.+)\n([\s\S]*?);", content)
+
     queries = []
+    op_pattern = "|".join("\\" + "\\".join(list(op.value)) for op in Op if op.value)
+    pattern = rf"^([a-z_][a-z0-9_-]*)({op_pattern})?$"
     for query_name, sql in raw_queries:
-        op_pattern = "|".join("\\" + "\\".join(list(op.value)) for op in Op if op.value)
-        pattern = rf"^([a-z_][a-z0-9_-]*)({op_pattern})?$"
         match = re.match(pattern, query_name)
         if not match:
             raise NameError(f'Invalid query name: "{query_name}"')
@@ -37,6 +39,7 @@ def parse_queries(path):
         args = re.findall(r":(\w+)", sql)
         query = Query(name=query_name, sql=sql, args=args, op=op)
         queries.append(query)
+
     return queries
 
 
