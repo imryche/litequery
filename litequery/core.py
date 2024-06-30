@@ -24,7 +24,8 @@ def parse_queries(path):
     raw_queries = re.findall(r"-- name: (.+)\n([\s\S]*?);", content)
     queries = []
     for query_name, sql in raw_queries:
-        match = re.match(r"^([a-z_][a-z0-9_-]*)(!|<!)?$", query_name)
+        op_pattern = "|".join(op.value for op in Op)
+        match = re.match(rf"^([a-z_][a-z0-9_-]*)({op_pattern})?$", query_name)
         if not match:
             raise NameError(f'Invalid query name: "{query_name}"')
         query_name = match.group(1)
