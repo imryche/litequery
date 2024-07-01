@@ -1,12 +1,13 @@
 from enum import Enum
 import re
-from dataclasses import dataclass, make_dataclass
+from dataclasses import dataclass, make_dataclass, fields
 import aiosqlite
 
 
 class Op(str, Enum):
     SELECT = ""
     SELECT_ONE = "^"
+    SELECT_VALUE = "$"
     MODIFY = "!"
     INSERT_RETURNING = "<!"
 
@@ -22,7 +23,6 @@ class Query:
 def parse_queries(path):
     with open(path) as f:
         content = f.read()
-
     raw_queries = re.findall(r"-- name: (.+)\n([\s\S]*?);", content)
 
     queries = []
@@ -68,6 +68,9 @@ class Litequery:
                     return await cur.fetchall()
                 if query.op == Op.SELECT_ONE:
                     return await cur.fetchone()
+                if query.op == Op.SELECT_VALUE:
+                    row = await cur.fetchone()
+                    return getattr(row, fields(row)[0].name) if row else None
                 if query.op == Op.MODIFY:
                     await conn.commit()
                     return cur.rowcount
