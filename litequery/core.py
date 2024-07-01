@@ -43,7 +43,7 @@ def parse_queries(path):
     return queries
 
 
-def create(database, queries_path):
+def setup(database, queries_path):
     queries = parse_queries(queries_path)
     return Litequery(database, queries)
 

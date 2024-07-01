@@ -27,7 +27,7 @@ async def setup_database():
 
 @pytest_asyncio.fixture
 async def lq(setup_database):
-    lq = litequery.create(DATABASE_PATH, QUERIES_PATH)
+    lq = litequery.setup(DATABASE_PATH, QUERIES_PATH)
     await lq.connect()
     yield lq
     await lq.disconnect()

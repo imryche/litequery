@@ -1,5 +1,5 @@
-from litequery.core import create
+from litequery.core import setup
 
 
 __version__ = "0.0.1"
-__all__ = ["create"]
+__all__ = ["setup"]
