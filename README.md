@@ -1,8 +1,8 @@
 # Litequery
 
-Litequery is a minimalist, async-first for interacting with SQLite in Python. It
-lets you define your queries once and call them as methods. No ORM bloat, just
-raw SQL power.
+Litequery is a minimalist, async-first library for interacting with SQLite in
+Python. It lets you define your queries once and call them as methods. No ORM
+bloat, just raw SQL power.
 
 ## Why Litequery?
 
@@ -67,5 +67,8 @@ async def main():
 asyncio.run(main())
 ```
 
-Happy querying! If you run into any issues or have feature requests, open an
-issue or submit a pull request. Let's keep it simple and powerful.
+---
+
+Litequery is all about simplicity and efficiency. Why wrestle with bloated ORMs
+when you can have raw SQL power? If you think there's a better way or have
+suggestions, let's hear them. Happy querying!
