@@ -18,7 +18,7 @@ pip install litequery
 
 ## Getting Started
 
-### Define your queries
+### Define Your Queries
 
 Create a `queries.sql` file. Name your queries using comments and write them in
 pure SQL.
@@ -40,7 +40,10 @@ INSERT INTO users (name, email) VALUES (:name, :email);
 DELETE FROM users;
 ```
 
-### Call your queries
+### Using Your Queries
+
+Define your database and queries, and then call them as methods. It's as
+straightforward as it sounds.
 
 ```python
 import litequery
