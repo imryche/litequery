@@ -67,7 +67,7 @@ async def main():
 asyncio.run(main())
 ```
 
----
+## Wrapping Up
 
 Litequery is all about simplicity and efficiency. Why wrestle with bloated ORMs
 when you can have raw SQL power? If you think there's a better way or have
