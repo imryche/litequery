@@ -49,6 +49,7 @@ straightforward as it sounds.
 import litequery
 import asyncio
 
+
 async def main():
     lq = litequery.setup("database.db", "queries.sql")
     await lq.connect()
@@ -78,6 +79,7 @@ atomicaly.
 ```python
 import litequery
 import asyncio
+
 
 async def main():
     lq = litequery.setup("database.db", "queries.sql")
