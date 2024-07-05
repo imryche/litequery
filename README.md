@@ -70,6 +70,37 @@ async def main():
 asyncio.run(main())
 ```
 
+### Transaction Support
+
+Litequery also supports transactions, allowing you to execute multiple queries
+atomicaly.
+
+```python
+import litequery
+import asyncio
+
+async def main():
+    lq = litequery.setup("database.db", "queries.sql")
+    await lq.connect()
+
+    try:
+        async with lq.transaction():
+            await lq.insert_user(name="Charlie", email="charlie@example.com")
+            raise Exception("Force rollback")
+            await lq.insert_user(name="Eve", email="eve@example.com")
+    except Exception:
+        print("Transaction failed")
+
+    users = await lq.get_all_users()
+    print(users)
+
+    await lq.disconnect()
+
+
+asyncio.run(main())
+
+```
+
 ## Wrapping Up
 
 Litequery is all about simplicity and efficiency. Why wrestle with bloated ORMs
