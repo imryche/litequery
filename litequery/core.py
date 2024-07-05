@@ -1,5 +1,6 @@
 from enum import Enum
 import re
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, make_dataclass, fields
 import aiosqlite
 
@@ -58,6 +59,7 @@ class Litequery:
     def __init__(self, database, queries):
         self._database = database
         self._conn = None
+        self._in_transaction = False
         self._create_methods(queries)
 
     def _create_method(self, query: Query):
@@ -72,10 +74,12 @@ class Litequery:
                     row = await cur.fetchone()
                     return getattr(row, fields(row)[0].name) if row else None
                 if query.op == Op.MODIFY:
-                    await conn.commit()
+                    if not self._in_transaction:
+                        await conn.commit()
                     return cur.rowcount
                 if query.op == Op.INSERT_RETURNING:
-                    await conn.commit()
+                    if not self._in_transaction:
+                        await conn.commit()
                     return cur.lastrowid
 
         return query_method
@@ -83,6 +87,20 @@ class Litequery:
     def _create_methods(self, queries: list[Query]):
         for query in queries:
             setattr(self, query.name, self._create_method(query))
+
+    @asynccontextmanager
+    async def transaction(self):
+        conn = await self.get_connection()
+        try:
+            await conn.execute("begin")
+            self._in_transaction = True
+            yield
+            await conn.commit()
+        except Exception:
+            await conn.rollback()
+            raise
+        finally:
+            self._in_transaction = False
 
     async def connect(self):
         self._conn = await aiosqlite.connect(self._database)
@@ -92,6 +110,7 @@ class Litequery:
         if self._conn is None:
             return
         await self._conn.close()
+        self._conn = None
 
     async def get_connection(self):
         if self._conn is None:

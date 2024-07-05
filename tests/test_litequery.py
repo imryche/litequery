@@ -70,3 +70,27 @@ async def test_delete_all_users(lq):
     assert rowcount == 2
     users = await lq.get_all_users()
     assert len(users) == 0
+
+
+@pytest.mark.asyncio
+async def test_transaction_commit(lq):
+    async with lq.transaction():
+        await lq.insert_user(name="Charlie", email="charlie@example.com")
+        await lq.insert_user(name="Eve", email="eve@example.com")
+
+    users = await lq.get_all_users()
+    assert len(users) == 4
+    assert users[2].name, users[2].email == ("Charlie", "charlie@example.com")
+    assert users[3].name, users[3].email == ("Eve", "eve@example.com")
+
+
+@pytest.mark.asyncio
+async def test_transaction_rollback(lq):
+    with pytest.raises(Exception):
+        async with lq.transaction():
+            await lq.insert_user(name="Charlie", email="charlie@example.com")
+            raise Exception("Force rollback")
+            await lq.insert_user(name="Eve", email="eve@example.com")
+
+    users = await lq.get_all_users()
+    assert len(users) == 2
