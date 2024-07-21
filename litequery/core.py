@@ -63,6 +63,8 @@ class Litequery:
         self._create_methods(queries)
 
     def _create_method(self, query: Query):
+        # TODO: check for invalid named arguments
+        # TODO: add support for positional arguments
         async def query_method(**kwargs):
             conn = await self.get_connection()
             async with conn.execute(query.sql, kwargs) as cur:
