@@ -4,21 +4,47 @@ import aiosqlite
 import litequery
 import pytest_asyncio
 
+from litequery.core import parse_queries
+
 DATABASE_PATH = "users.db"
-QUERIES_PATH = "tests/queries.sql"
+QUERIES_FILE_PATH = "tests/queries.sql"
+QUERIES_DIR_PATH = "tests/queries/"
 
 
 @pytest_asyncio.fixture
 async def setup_database():
     async with aiosqlite.connect(DATABASE_PATH) as conn:
         await conn.execute(
-            "create table users (id integer primary key autoincrement, name text not null, email text not null)"
+            """
+            create table users (
+                id integer primary key autoincrement,
+                name text not null,
+                email text not null
+            )
+            """
         )
         await conn.execute(
-            "insert into users (name, email) values ('Alice', 'alice@example.com')"
+            """
+            create table events (
+                id integer primary key autoincrement,
+                user_id integer not null,
+                name text not null,
+                created_at datetime not null default current_timestamp,
+                foreign key (user_id) references users (id)
+            )
+            """
         )
         await conn.execute(
-            "insert into users (name, email) values ('Bob', 'bob@example.com')"
+            "insert into users (id, name, email) values (1, 'Alice', 'alice@example.com')"
+        )
+        await conn.execute(
+            "insert into users (id, name, email) values (2, 'Bob', 'bob@example.com')"
+        )
+        await conn.execute(
+            "insert into events (user_id, name) values (1, 'user_logged_in')"
+        )
+        await conn.execute(
+            "insert into events (user_id, name) values (2, 'password_changed')"
         )
         await conn.commit()
     yield
@@ -27,10 +53,22 @@ async def setup_database():
 
 @pytest_asyncio.fixture
 async def lq(setup_database):
-    lq = litequery.setup(DATABASE_PATH, QUERIES_PATH)
+    lq = litequery.setup(DATABASE_PATH, QUERIES_DIR_PATH)
     await lq.connect()
     yield lq
     await lq.disconnect()
+
+
+@pytest.mark.asyncio
+async def test_parse_queries_from_file():
+    queries = parse_queries(QUERIES_FILE_PATH)
+    assert len(queries) == 5
+
+
+@pytest.mark.asyncio
+async def test_parse_queries_from_directory():
+    queries = parse_queries(QUERIES_DIR_PATH)
+    assert len(queries) == 6
 
 
 @pytest.mark.asyncio

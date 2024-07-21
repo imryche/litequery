@@ -1,3 +1,5 @@
+import glob
+import os
 from enum import Enum
 import re
 from contextlib import asynccontextmanager
@@ -21,8 +23,8 @@ class Query:
     op: Op = Op.SELECT
 
 
-def parse_queries(path):
-    with open(path) as f:
+def parse_file_queries(file_path):
+    with open(file_path) as f:
         content = f.read()
     raw_queries = re.findall(r"-- name: (.+)\n([\s\S]*?);", content)
 
@@ -40,7 +42,18 @@ def parse_queries(path):
         args = re.findall(r":(\w+)", sql)
         query = Query(name=query_name, sql=sql, args=args, op=op)
         queries.append(query)
+    return queries
 
+
+def parse_queries(path):
+    queries = []
+    if os.path.isdir(path):
+        for file_path in glob.glob(os.path.join(path, "*.sql")):
+            queries.extend(parse_file_queries(file_path))
+    elif os.path.isfile(path):
+        queries.extend(parse_file_queries(path))
+    else:
+        raise ValueError(f"Path {path} is neither a file nor a directory.")
     return queries
 
 
