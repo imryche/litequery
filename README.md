@@ -1,13 +1,15 @@
 # Litequery
 
-Litequery is a minimalist, async-first library for interacting with SQLite in
-Python. It lets you define your queries once and call them as methods. No ORM
-bloat, just raw SQL power.
+Litequery is a minimalist library for interacting with SQLite in Python. It lets
+you define your queries once and call them as methods. No ORM bloat, just raw
+SQL power, with the flexibility to operate in both asynchronous and synchronous
+modes.
 
 ## Why Litequery?
 
 - **Simplicity**: Define SQL queries in `.sql` files. No complex ORM layers.
-- **Async first**: Built for modern async Python with `aiosqlite`.
+- **Async first**: Built for modern async Python, but also supports synchronous
+  operations for traditional use cases.
 - **Flexible**: Supports different SQL operations seamlessly.
 
 ## Installation
@@ -42,8 +44,8 @@ DELETE FROM users;
 
 ### Using Your Queries
 
-Define your database and queries, and then call them as methods. It's as
-straightforward as it sounds.
+Define your database and queries, and then call them as methods. Choose async or
+sync setup based on your needs. It's as straightforward as it sounds.
 
 ```python
 import litequery
@@ -51,7 +53,7 @@ import asyncio
 
 
 async def main():
-    lq = litequery.setup("database.db", "queries.sql")
+    lq = litequery.setup("database.db", "queries.sql", use_async=True)
     await lq.connect()
 
     user_id = await lq.insert_user(name="Alice", email="alice@example.com")
@@ -73,8 +75,8 @@ asyncio.run(main())
 
 ### Transaction Support
 
-Litequery also supports transactions, allowing you to execute multiple queries
-atomicaly.
+Litequery also supports transactions in both async and sync contexts, allowing
+you to execute multiple queries atomicaly.
 
 ```python
 import litequery
