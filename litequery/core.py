@@ -2,8 +2,9 @@ import glob
 import os
 from enum import Enum
 import re
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, make_dataclass, fields
+import sqlite3
 import aiosqlite
 
 
@@ -57,9 +58,11 @@ def parse_queries(path):
     return queries
 
 
-def setup(database, queries_path):
+def setup(database, queries_path, use_async=False):
     queries = parse_queries(queries_path)
-    return AsyncLitequery(database, queries)
+    if use_async:
+        return LitequeryAsync(database, queries)
+    return LitequerySync(database, queries)
 
 
 def dataclass_factory(cursor, row):
@@ -68,13 +71,22 @@ def dataclass_factory(cursor, row):
     return cls(*row)
 
 
-class AsyncLitequery:
+class LitequeryBase:
     def __init__(self, database, queries):
         self._database = database
         self._conn = None
         self._in_transaction = False
         self._create_methods(queries)
 
+    def _create_methods(self, queries: list[Query]):
+        for query in queries:
+            setattr(self, query.name, self._create_method(query))
+
+    def _create_method(self, query):
+        raise NotImplementedError("This method should be overridden!")
+
+
+class LitequeryAsync(LitequeryBase):
     def _create_method(self, query: Query):
         # TODO: check for invalid named arguments
         # TODO: add support for positional arguments
@@ -98,10 +110,6 @@ class AsyncLitequery:
                     return cur.lastrowid
 
         return query_method
-
-    def _create_methods(self, queries: list[Query]):
-        for query in queries:
-            setattr(self, query.name, self._create_method(query))
 
     @asynccontextmanager
     async def transaction(self):
@@ -130,4 +138,57 @@ class AsyncLitequery:
     async def get_connection(self):
         if self._conn is None:
             await self.connect()
+        return self._conn
+
+
+class LitequerySync(LitequeryBase):
+    def _create_method(self, query: Query):
+        def query_method(**kwargs):
+            conn = self.get_connection()
+            cur = conn.execute(query.sql, kwargs)
+            if query.op == Op.SELECT:
+                return cur.fetchall()
+            if query.op == Op.SELECT_ONE:
+                return cur.fetchone()
+            if query.op == Op.SELECT_VALUE:
+                row = cur.fetchone()
+                return getattr(row, fields(row)[0].name) if row else None
+            if query.op == Op.MODIFY:
+                if not self._in_transaction:
+                    conn.commit()
+                return cur.rowcount
+            if query.op == Op.INSERT_RETURNING:
+                if not self._in_transaction:
+                    conn.commit()
+                return cur.lastrowid
+
+        return query_method
+
+    @contextmanager
+    def transaction(self):
+        conn = self.get_connection()
+        try:
+            conn.execute("begin")
+            self._in_transaction = True
+            yield
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._in_transaction = False
+
+    def connect(self):
+        self._conn = sqlite3.connect(self._database)
+        self._conn.row_factory = dataclass_factory
+
+    def disconnect(self):
+        if self._conn is None:
+            return
+        self._conn.close()
+        self._conn = None
+
+    def get_connection(self):
+        if self._conn is None:
+            self.connect()
         return self._conn
