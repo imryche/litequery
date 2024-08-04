@@ -59,7 +59,7 @@ def parse_queries(path):
 
 def setup(database, queries_path):
     queries = parse_queries(queries_path)
-    return Litequery(database, queries)
+    return AsyncLitequery(database, queries)
 
 
 def dataclass_factory(cursor, row):
@@ -68,7 +68,7 @@ def dataclass_factory(cursor, row):
     return cls(*row)
 
 
-class Litequery:
+class AsyncLitequery:
     def __init__(self, database, queries):
         self._database = database
         self._conn = None
