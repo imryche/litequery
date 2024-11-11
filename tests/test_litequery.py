@@ -2,6 +2,7 @@ import sqlite3
 import os
 import pytest
 import litequery
+from datetime import datetime
 import pytest_asyncio
 
 from litequery.core import parse_queries
@@ -19,7 +20,8 @@ def setup_database():
             create table users (
                 id integer primary key autoincrement,
                 name text not null,
-                email text not null
+                email text not null,
+                created_at datetime not null default current_timestamp
             )
             """
         )
@@ -80,16 +82,20 @@ async def test_parse_queries_from_directory():
 @pytest.mark.asyncio
 async def test_get_all_users_async(lq_async):
     users = await lq_async.get_all_users()
-    assert len(users) == 2
-    assert users[0].name == "Alice"
-    assert users[1].name == "Bob"
+    assert_all_users(users)
 
 
 def test_get_all_users_sync(lq_sync):
     users = lq_sync.get_all_users()
+    assert_all_users(users)
+
+
+def assert_all_users(users):
     assert len(users) == 2
     assert users[0].name == "Alice"
+    assert isinstance(users[0].created_at, datetime)
     assert users[1].name == "Bob"
+    assert isinstance(users[1].created_at, datetime)
 
 
 @pytest.mark.asyncio

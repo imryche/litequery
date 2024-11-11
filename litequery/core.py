@@ -1,3 +1,4 @@
+from datetime import datetime
 import glob
 import os
 from enum import Enum
@@ -6,6 +7,10 @@ from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, make_dataclass, fields
 import sqlite3
 import aiosqlite
+
+_iso8601_pattern = re.compile(
+    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$"
+)
 
 
 class Op(str, Enum):
@@ -66,9 +71,18 @@ def setup(database, queries_path, use_async=False):
 
 
 def dataclass_factory(cursor, row):
-    fields = [col[0] for col in cursor.description]
+    fields, values = [], []
+    for desc, value in zip(cursor.description, row):
+        fields.append(desc[0])
+        if isinstance(value, str) and _iso8601_pattern.match(value):
+            try:
+                value = datetime.fromisoformat(value)
+            except ValueError:
+                pass
+        values.append(value)
+
     cls = make_dataclass("Record", fields)
-    return cls(*row)
+    return cls(*values)
 
 
 class LitequeryBase:
