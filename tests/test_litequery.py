@@ -1,10 +1,11 @@
-import sqlite3
 import os
-import pytest
-import litequery
+import sqlite3
 from datetime import datetime
+
+import pytest
 import pytest_asyncio
 
+import litequery
 from litequery.core import parse_queries
 
 DATABASE_PATH = "users.db"

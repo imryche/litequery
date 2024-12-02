@@ -1,7 +1,7 @@
+import glob
+import os
 import re
 import sqlite3
-import os
-import glob
 
 
 def migrate(path):
