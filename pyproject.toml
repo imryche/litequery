@@ -1,23 +1,7 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.ruff]
+line-length=88
+extend-select = ["I", "UP", "ASYNC"]
+extend-ignore = ["UP007"]
 
-[project]
-name = "litequery"
-version = "0.5.0"
-authors = [{ name = "Dima Charnyshou", email = "imryche13@gmail.com" }]
-description = "A handy way to interact with an SQLite database from Python"
-readme = "README.md"
-requires-python = ">=3.8"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-]
-
-[project.urls]
-Homepage = "https://github.com/imryche/litequery"
-Issues = "https://github.com/imryche/litequery/issues"
-
-[project.scripts]
-lq = "litequery.cli:main"
+[tool.ruff.lint]
+extend-select = ["I", "UP", "E501", "ASYNC"]
