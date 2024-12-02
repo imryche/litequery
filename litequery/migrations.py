@@ -4,13 +4,13 @@ import re
 import sqlite3
 
 
-def migrate(path):
-    conn = sqlite3.connect(path)
+def migrate(db_path, migrations_dir):
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
 
     filenames = sort_migration_filenames(
-        os.path.basename(p) for p in glob.glob("migrations/*.sql")
+        os.path.basename(p) for p in glob.glob(f"{migrations_dir}/*.sql")
     )
     c.execute(
         """
@@ -33,7 +33,7 @@ def migrate(path):
     print("Applying migrations:")
     for file in unapplied:
         print(f"- {file}")
-        with open(f"migrations/{file}") as f:
+        with open(f"{migrations_dir}/{file}") as f:
             c.executescript(f.read())
 
         c.execute(

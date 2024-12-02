@@ -13,7 +13,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "migrate":
-        migrate(args.path)
+        migrate(args.path, "migrations")
     elif args.command is None:
         parser.print_help()
     else:
