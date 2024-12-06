@@ -143,6 +143,7 @@ class LitequeryAsync(LitequeryBase):
     async def connect(self):
         self._conn = await aiosqlite.connect(self._database)
         self._conn.row_factory = dataclass_factory
+        await self._conn.execute("PRAGMA foreign_keys = ON")
 
     async def disconnect(self):
         if self._conn is None:
@@ -196,6 +197,7 @@ class LitequerySync(LitequeryBase):
     def connect(self):
         self._conn = sqlite3.connect(self._database)
         self._conn.row_factory = dataclass_factory
+        self._conn.execute("PRAGMA foreign_keys = ON")
 
     def disconnect(self):
         if self._conn is None:

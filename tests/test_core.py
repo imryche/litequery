@@ -33,7 +33,7 @@ def setup_database():
                 user_id integer not null,
                 name text not null,
                 created_at datetime not null default current_timestamp,
-                foreign key (user_id) references users (id)
+                foreign key (user_id) references users (id) on delete cascade
             )
             """
         )
@@ -201,3 +201,24 @@ def test_transaction_rollback_sync(lq_sync):
 
     users = lq_sync.get_all_users()
     assert len(users) == 2
+
+
+@pytest.mark.asyncio
+async def test_foreign_keys_enabled_async(lq_async):
+    events = await lq_async.get_all_events()
+    assert len(events) == 2
+
+    await lq_async.delete_all_users()
+
+    events = await lq_async.get_all_events()
+    assert len(events) == 0
+
+
+def test_foreign_keys_enabled_sync(lq_sync):
+    events = lq_sync.get_all_events()
+    assert len(events) == 2
+
+    lq_sync.delete_all_users()
+
+    events = lq_sync.get_all_events()
+    assert len(events) == 0
