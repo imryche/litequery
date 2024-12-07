@@ -87,6 +87,15 @@ def dataclass_factory(cursor, row):
 
 
 class LitequeryBase:
+    PRAGMAS = [
+        ("journal_mode", "wal"),
+        ("foreign_keys", 1),
+        ("synchronous", "normal"),
+        ("mmap_size", 134217728),  # 128 Mb
+        ("journal_size_limit", 67108864),  # 64 Mb
+        ("cache_size", 2000),
+    ]
+
     def __init__(self, database, queries):
         self._database = database
         self._conn = None
@@ -126,6 +135,10 @@ class LitequeryAsync(LitequeryBase):
 
         return query_method
 
+    async def _apply_pragmas(self):
+        for pragma, value in self.PRAGMAS:
+            await self._conn.execute(f"pragma {pragma} = {value}")
+
     @asynccontextmanager
     async def transaction(self):
         conn = await self.get_connection()
@@ -143,7 +156,7 @@ class LitequeryAsync(LitequeryBase):
     async def connect(self):
         self._conn = await aiosqlite.connect(self._database)
         self._conn.row_factory = dataclass_factory
-        await self._conn.execute("PRAGMA foreign_keys = ON")
+        await self._apply_pragmas()
 
     async def disconnect(self):
         if self._conn is None:
@@ -180,6 +193,10 @@ class LitequerySync(LitequeryBase):
 
         return query_method
 
+    def _apply_pragmas(self):
+        for pragma, value in self.PRAGMAS:
+            self._conn.execute(f"pragma {pragma} = {value}")
+
     @contextmanager
     def transaction(self):
         conn = self.get_connection()
@@ -197,7 +214,7 @@ class LitequerySync(LitequeryBase):
     def connect(self):
         self._conn = sqlite3.connect(self._database)
         self._conn.row_factory = dataclass_factory
-        self._conn.execute("PRAGMA foreign_keys = ON")
+        self._apply_pragmas()
 
     def disconnect(self):
         if self._conn is None:

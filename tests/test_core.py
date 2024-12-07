@@ -222,3 +222,35 @@ def test_foreign_keys_enabled_sync(lq_sync):
 
     events = lq_sync.get_all_events()
     assert len(events) == 0
+
+
+@pytest.mark.asyncio
+async def test_pragmas_configured_async(lq_async):
+    expected_pragmas = [
+        ("journal_mode", "wal"),
+        ("foreign_keys", 1),
+        ("synchronous", 1),
+        ("mmap_size", 134217728),  # 128 Mb
+        ("journal_size_limit", 67108864),  # 64 Mb
+        ("cache_size", 2000),
+    ]
+    conn = await lq_async.get_connection()
+    for pragma, expected_value in expected_pragmas:
+        async with conn.execute(f"pragma {pragma}") as cursor:
+            result = await cursor.fetchone()
+            assert getattr(result, pragma) == expected_value
+
+
+def test_pragmas_configured_sync(lq_sync):
+    expected_pragmas = [
+        ("journal_mode", "wal"),
+        ("foreign_keys", 1),
+        ("synchronous", 1),
+        ("mmap_size", 134217728),  # 128 Mb
+        ("journal_size_limit", 67108864),  # 64 Mb
+        ("cache_size", 2000),
+    ]
+    conn = lq_sync.get_connection()
+    for pragma, expected_value in expected_pragmas:
+        result = conn.execute(f"pragma {pragma}").fetchone()
+        assert getattr(result, pragma) == expected_value
