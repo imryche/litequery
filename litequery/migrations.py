@@ -2,6 +2,7 @@ import glob
 import os
 import re
 import sqlite3
+import textwrap
 
 
 def migrate(db_path, migrations_dir):
@@ -12,16 +13,14 @@ def migrate(db_path, migrations_dir):
     filenames = sort_migration_filenames(
         os.path.basename(p) for p in glob.glob(f"{migrations_dir}/*.sql")
     )
-    c.execute(
-        """
-        --sql
+    query = """
         create table if not exists migrations (
             id integer primary key autoincrement,
             filename text not null,
-            run_at datetime not null default current_timestamp
+            run_at text not null default current_timestamp
         );
-        """
-    )
+    """
+    c.execute(textwrap.dedent(query).strip())
     migrations = c.execute("select * from migrations order by run_at asc").fetchall()
     migrations = {m["filename"] for m in migrations}
     unapplied = sort_migration_filenames(set(filenames) - migrations)
@@ -41,6 +40,13 @@ def migrate(db_path, migrations_dir):
             {"filename": file},
         )
         conn.commit()
+
+    with open(os.path.join(os.path.dirname(db_path), "schema.sql"), "w") as f:
+        statements = c.execute(
+            "select sql from sqlite_master where sql is not null"
+        ).fetchall()
+        for (statement,) in statements:
+            f.write(f"{statement};\n")
 
     conn.close()
 

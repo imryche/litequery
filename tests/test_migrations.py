@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import tempfile
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -56,3 +57,25 @@ def test_migrate(temp_db, temp_migrations_dir):
     assert table_info[1][1] == "name"
 
     conn.close()
+
+
+def test_creates_schema(temp_db, temp_migrations_dir):
+    create_migration_file(
+        temp_migrations_dir,
+        "001_initial.sql",
+        "create table users (id integer primary key autoincrement);",
+    )
+
+    migrate(temp_db, temp_migrations_dir)
+
+    with open(os.path.join(os.path.dirname(temp_db), "schema.sql")) as f:
+        schema_content = """
+            CREATE TABLE migrations (
+                id integer primary key autoincrement,
+                filename text not null,
+                run_at text not null default current_timestamp
+            );
+            CREATE TABLE sqlite_sequence(name,seq);
+            CREATE TABLE users (id integer primary key autoincrement);
+        """
+        assert f.read().strip() == textwrap.dedent(schema_content).strip()
