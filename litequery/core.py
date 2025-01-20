@@ -94,6 +94,7 @@ class LitequeryBase:
         ("mmap_size", 134217728),  # 128 Mb
         ("journal_size_limit", 67108864),  # 64 Mb
         ("cache_size", 2000),
+        ("busy_timeout", 5000),
     ]
 
     def __init__(self, database, queries):
