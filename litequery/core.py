@@ -155,7 +155,7 @@ class LitequeryAsync(LitequeryBase):
             self._in_transaction = False
 
     async def connect(self):
-        self._conn = await aiosqlite.connect(self._database)
+        self._conn = await aiosqlite.connect(self._database, timeout=5)
         self._conn.row_factory = dataclass_factory
         await self._apply_pragmas()
 
@@ -213,7 +213,7 @@ class LitequerySync(LitequeryBase):
             self._in_transaction = False
 
     def connect(self):
-        self._conn = sqlite3.connect(self._database)
+        self._conn = sqlite3.connect(self._database, timeout=5)
         self._conn.row_factory = dataclass_factory
         self._apply_pragmas()
 
