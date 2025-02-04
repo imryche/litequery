@@ -133,6 +133,7 @@ class LitequeryAsync(LitequeryBase):
                     if not self._in_transaction:
                         await conn.commit()
                     return cur.lastrowid
+            await conn.close()
 
         return query_method
 
@@ -191,6 +192,7 @@ class LitequerySync(LitequeryBase):
                 if not self._in_transaction:
                     conn.commit()
                 return cur.lastrowid
+            conn.close()
 
         return query_method
 
