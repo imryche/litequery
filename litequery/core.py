@@ -112,120 +112,134 @@ class LitequeryBase:
 
 
 class LitequeryAsync(LitequeryBase):
+    async def _execute_query(self, conn, query: Query, kwargs: dict):
+        async with conn.execute(query.sql, kwargs) as cur:
+            if query.op == Op.SELECT:
+                return await cur.fetchall()
+            if query.op == Op.SELECT_ONE:
+                return await cur.fetchone()
+            if query.op == Op.SELECT_VALUE:
+                row = await cur.fetchone()
+                return getattr(row, fields(row)[0].name) if row else None
+            if query.op == Op.MODIFY:
+                if not self._in_transaction:
+                    await conn.commit()
+                return cur.rowcount
+            if query.op == Op.INSERT_RETURNING:
+                if not self._in_transaction:
+                    await conn.commit()
+                return cur.lastrowid
+
     def _create_method(self, query: Query):
         # TODO: check for invalid named arguments
         # TODO: add support for positional arguments
         async def query_method(**kwargs):
-            conn = await self.get_connection()
-            async with conn.execute(query.sql, kwargs) as cur:
-                if query.op == Op.SELECT:
-                    return await cur.fetchall()
-                if query.op == Op.SELECT_ONE:
-                    return await cur.fetchone()
-                if query.op == Op.SELECT_VALUE:
-                    row = await cur.fetchone()
-                    return getattr(row, fields(row)[0].name) if row else None
-                if query.op == Op.MODIFY:
-                    if not self._in_transaction:
-                        await conn.commit()
-                    return cur.rowcount
-                if query.op == Op.INSERT_RETURNING:
-                    if not self._in_transaction:
-                        await conn.commit()
-                    return cur.lastrowid
-            await conn.close()
+            if self._in_transaction and self._conn:
+                return await self._execute_query(self._conn, query, kwargs)
+            async with self.connect() as conn:
+                return await self._execute_query(conn, query, kwargs)
 
         return query_method
 
-    async def _apply_pragmas(self):
-        for pragma, value in self.PRAGMAS:
-            await self._conn.execute(f"pragma {pragma} = {value}")
+    @asynccontextmanager
+    async def connect(self):
+        if self._in_transaction and self._conn:
+            yield self._conn
+        else:
+            conn = await aiosqlite.connect(self._database, timeout=5)
+            conn.row_factory = dataclass_factory
+            for pragma, value in self.PRAGMAS:
+                await conn.execute(f"pragma {pragma} = {value}")
+            try:
+                yield conn
+            finally:
+                await conn.close()
 
     @asynccontextmanager
     async def transaction(self):
-        conn = await self.get_connection()
-        try:
-            await conn.execute("begin")
-            self._in_transaction = True
-            yield
-            await conn.commit()
-        except Exception:
-            await conn.rollback()
-            raise
-        finally:
-            self._in_transaction = False
-
-    async def connect(self):
-        self._conn = await aiosqlite.connect(self._database, timeout=5)
-        self._conn.row_factory = dataclass_factory
-        await self._apply_pragmas()
-
-    async def disconnect(self):
-        if self._conn is None:
-            return
-        await self._conn.close()
-        self._conn = None
-
-    async def get_connection(self):
-        if self._conn is None:
-            await self.connect()
-        return self._conn
+        if self._in_transaction and self._conn:
+            yield self._conn
+        else:
+            conn = await aiosqlite.connect(self._database, timeout=5)
+            conn.row_factory = dataclass_factory
+            for pragma, value in self.PRAGMAS:
+                await conn.execute(f"pragma {pragma} = {value}")
+            try:
+                self._conn = conn
+                self._in_transaction = True
+                await conn.execute("begin")
+                yield
+                await conn.commit()
+            except Exception:
+                await conn.rollback()
+                raise
+            finally:
+                self._conn = None
+                self._in_transaction = False
+                await conn.close()
 
 
 class LitequerySync(LitequeryBase):
+    def _execute_query(self, conn, query: Query, kwargs: dict):
+        cur = conn.execute(query.sql, kwargs)
+        if query.op == Op.SELECT:
+            return cur.fetchall()
+        if query.op == Op.SELECT_ONE:
+            return cur.fetchone()
+        if query.op == Op.SELECT_VALUE:
+            row = cur.fetchone()
+            return getattr(row, fields(row)[0].name) if row else None
+        if query.op == Op.MODIFY:
+            if not self._in_transaction:
+                conn.commit()
+            return cur.rowcount
+        if query.op == Op.INSERT_RETURNING:
+            if not self._in_transaction:
+                conn.commit()
+            return cur.lastrowid
+
     def _create_method(self, query: Query):
         def query_method(**kwargs):
-            conn = self.get_connection()
-            cur = conn.execute(query.sql, kwargs)
-            if query.op == Op.SELECT:
-                return cur.fetchall()
-            if query.op == Op.SELECT_ONE:
-                return cur.fetchone()
-            if query.op == Op.SELECT_VALUE:
-                row = cur.fetchone()
-                return getattr(row, fields(row)[0].name) if row else None
-            if query.op == Op.MODIFY:
-                if not self._in_transaction:
-                    conn.commit()
-                return cur.rowcount
-            if query.op == Op.INSERT_RETURNING:
-                if not self._in_transaction:
-                    conn.commit()
-                return cur.lastrowid
-            conn.close()
+            if self._in_transaction and self._conn:
+                return self._execute_query(self._conn, query, kwargs)
+            with self.connect() as conn:
+                return self._execute_query(conn, query, kwargs)
 
         return query_method
 
-    def _apply_pragmas(self):
-        for pragma, value in self.PRAGMAS:
-            self._conn.execute(f"pragma {pragma} = {value}")
+    @contextmanager
+    def connect(self):
+        if self._in_transaction and self._conn:
+            yield self._conn
+        else:
+            conn = sqlite3.connect(self._database, timeout=5)
+            conn.row_factory = dataclass_factory
+            for pragma, value in self.PRAGMAS:
+                conn.execute(f"pragma {pragma} = {value}")
+            try:
+                yield conn
+            finally:
+                conn.close()
 
     @contextmanager
     def transaction(self):
-        conn = self.get_connection()
-        try:
-            conn.execute("begin")
-            self._in_transaction = True
-            yield
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            self._in_transaction = False
-
-    def connect(self):
-        self._conn = sqlite3.connect(self._database, timeout=5)
-        self._conn.row_factory = dataclass_factory
-        self._apply_pragmas()
-
-    def disconnect(self):
-        if self._conn is None:
-            return
-        self._conn.close()
-        self._conn = None
-
-    def get_connection(self):
-        if self._conn is None:
-            self.connect()
-        return self._conn
+        if self._in_transaction and self._conn:
+            yield self._conn
+        else:
+            conn = sqlite3.connect(self._database, timeout=5)
+            conn.row_factory = dataclass_factory
+            for pragma, value in self.PRAGMAS:
+                conn.execute(f"pragma {pragma} = {value}")
+            try:
+                self._conn = conn
+                self._in_transaction = True
+                conn.execute("begin")
+                yield
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                self._conn = None
+                self._in_transaction = False
+                conn.close()

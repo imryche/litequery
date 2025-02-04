@@ -55,18 +55,12 @@ def setup_database():
 
 @pytest_asyncio.fixture
 async def lq_async(setup_database):
-    lq = litequery.setup(DATABASE_PATH, QUERIES_DIR_PATH, use_async=True)
-    await lq.connect()
-    yield lq
-    await lq.disconnect()
+    return litequery.setup(DATABASE_PATH, QUERIES_DIR_PATH, use_async=True)
 
 
 @pytest.fixture
 def lq_sync(setup_database):
-    lq = litequery.setup(DATABASE_PATH, QUERIES_DIR_PATH, use_async=False)
-    lq.connect()
-    yield lq
-    lq.disconnect()
+    return litequery.setup(DATABASE_PATH, QUERIES_DIR_PATH, use_async=False)
 
 
 @pytest.mark.asyncio
@@ -236,11 +230,11 @@ async def test_pragmas_configured_async(lq_async):
         ("cache_size", 2000),
         ("busy_timeout", 5000),
     ]
-    conn = await lq_async.get_connection()
-    for pragma, expected_value in expected_pragmas:
-        async with conn.execute(f"pragma {pragma}") as cursor:
-            result = await cursor.fetchone()
-            assert getattr(result, fields(result)[0].name, None) == expected_value
+    async with lq_async.connect() as conn:
+        for pragma, expected_value in expected_pragmas:
+            async with conn.execute(f"pragma {pragma}") as cursor:
+                result = await cursor.fetchone()
+                assert getattr(result, fields(result)[0].name, None) == expected_value
 
 
 def test_pragmas_configured_sync(lq_sync):
@@ -253,7 +247,7 @@ def test_pragmas_configured_sync(lq_sync):
         ("cache_size", 2000),
         ("busy_timeout", 5000),
     ]
-    conn = lq_sync.get_connection()
-    for pragma, expected_value in expected_pragmas:
-        result = conn.execute(f"pragma {pragma}").fetchone()
-        assert getattr(result, fields(result)[0].name, None) == expected_value
+    with lq_sync.connect() as conn:
+        for pragma, expected_value in expected_pragmas:
+            result = conn.execute(f"pragma {pragma}").fetchone()
+            assert getattr(result, fields(result)[0].name, None) == expected_value
