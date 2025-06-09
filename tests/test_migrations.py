@@ -1,4 +1,5 @@
 import os
+import shutil
 import sqlite3
 import tempfile
 import textwrap
@@ -6,23 +7,24 @@ from pathlib import Path
 
 import pytest
 
+from litequery.config import get_config
 from litequery.migrations import migrate
 
 
 @pytest.fixture
 def temp_db():
     fd, path = tempfile.mkstemp()
-    yield path
+    yield Path(path)
     os.close(fd)
     os.unlink(path)
 
 
 @pytest.fixture
-def temp_migrations_dir():
-    with tempfile.TemporaryDirectory() as tmpdir:
-        migrations_dir = Path(tmpdir) / "migrations"
-        migrations_dir.mkdir()
-        yield migrations_dir
+def temp_migrations_dir(temp_db):
+    migrations_path = temp_db.parent / "migrations"
+    migrations_path.mkdir(exist_ok=True)
+    yield migrations_path
+    shutil.rmtree(migrations_path)
 
 
 def create_migration_file(dir_path, filename, content):
@@ -32,7 +34,7 @@ def create_migration_file(dir_path, filename, content):
     return migration_path
 
 
-def test_migrate(temp_db, temp_migrations_dir):
+def test_migrate(temp_db: Path, temp_migrations_dir: Path):
     migrations = {
         "001_initial.sql": "create table users (id integer primary key autoincrement);",
         "002_add_name.sql": "alter table users add column name text;",
@@ -40,7 +42,7 @@ def test_migrate(temp_db, temp_migrations_dir):
     for filename, content in migrations.items():
         create_migration_file(temp_migrations_dir, filename, content)
 
-    migrate(temp_db, temp_migrations_dir)
+    migrate(get_config(str(temp_db)))
 
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()
@@ -66,7 +68,7 @@ def test_creates_schema(temp_db, temp_migrations_dir):
         "create table users (id integer primary key autoincrement);",
     )
 
-    migrate(temp_db, temp_migrations_dir)
+    migrate(get_config(str(temp_db)))
 
     with open(os.path.join(os.path.dirname(temp_db), "schema.sql")) as f:
         schema_content = """

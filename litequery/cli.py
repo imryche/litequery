@@ -1,8 +1,7 @@
 import argparse
 
+from litequery.config import get_config
 from litequery.migrations import create_migration, migrate
-
-MIGRATIONS_PATH = "migrations"
 
 
 def main():
@@ -15,22 +14,22 @@ def main():
     )
 
     migration_parser = new_subparsers.add_parser(
-        "migration", help="Creeate new migration"
+        "migration", help="Create new migration"
     )
     migration_parser.add_argument(
         "name", help="Migration name (e.g., 'add users table')"
     )
 
-    migrate_parser = subparsers.add_parser("migrate", help="Run database migrations")
-    migrate_parser.add_argument("path", help="Path to the SQLite database")
+    subparsers.add_parser("migrate", help="Run database migrations")
 
     args = parser.parse_args()
+    config = get_config()
 
     if args.command == "migrate":
-        migrate(args.path, MIGRATIONS_PATH)
+        migrate(config)
     elif args.command == "new":
         if args.new_command == "migration":
-            create_migration(args.name, MIGRATIONS_PATH)
+            create_migration(args.name, config)
         elif args.new_command is None:
             new_parser.print_help()
         else:

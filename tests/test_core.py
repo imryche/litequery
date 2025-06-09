@@ -7,11 +7,10 @@ import pytest
 import pytest_asyncio
 
 import litequery
+from litequery.config import get_config
 from litequery.core import parse_queries
 
-DATABASE_PATH = "users.db"
-QUERIES_FILE_PATH = "tests/queries.sql"
-QUERIES_DIR_PATH = "tests/queries/"
+DATABASE_PATH = "tests/users.db"
 
 
 @pytest.fixture
@@ -55,23 +54,16 @@ def setup_database():
 
 @pytest_asyncio.fixture
 async def lq_async(setup_database):
-    return litequery.setup(DATABASE_PATH, QUERIES_DIR_PATH, use_async=True)
+    return litequery.setup(DATABASE_PATH, use_async=True)
 
 
 @pytest.fixture
 def lq_sync(setup_database):
-    return litequery.setup(DATABASE_PATH, QUERIES_DIR_PATH, use_async=False)
+    return litequery.setup(DATABASE_PATH, use_async=False)
 
 
-@pytest.mark.asyncio
-async def test_parse_queries_from_file():
-    queries = parse_queries(QUERIES_FILE_PATH)
-    assert len(queries) == 5
-
-
-@pytest.mark.asyncio
-async def test_parse_queries_from_directory():
-    queries = parse_queries(QUERIES_DIR_PATH)
+def test_parse_queries_from_directory():
+    queries = parse_queries(get_config(DATABASE_PATH))
     assert len(queries) == 6
 
 

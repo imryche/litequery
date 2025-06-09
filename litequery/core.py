@@ -9,6 +9,8 @@ from enum import Enum
 
 import aiosqlite
 
+from litequery.config import Config, get_config
+
 _iso8601_pattern = re.compile(
     r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$"
 )
@@ -52,23 +54,26 @@ def parse_file_queries(file_path):
     return queries
 
 
-def parse_queries(path):
+def parse_queries(config: Config):
     queries = []
-    if os.path.isdir(path):
-        for file_path in glob.glob(os.path.join(path, "*.sql")):
+    if os.path.isdir(config.queries_path):
+        for file_path in glob.glob(os.path.join(config.queries_path, "*.sql")):
             queries.extend(parse_file_queries(file_path))
-    elif os.path.isfile(path):
-        queries.extend(parse_file_queries(path))
+    elif os.path.isfile(config.queries_path):
+        queries.extend(parse_file_queries(config.queries_path))
     else:
-        raise ValueError(f"Path {path} is neither a file nor a directory.")
+        raise ValueError(
+            f"Path {config.queries_path} is neither a file nor a directory."
+        )
     return queries
 
 
-def setup(database, queries_path, use_async=False):
-    queries = parse_queries(queries_path)
+def setup(db_path: str, use_async=False):
+    config = get_config(db_path) if db_path else get_config()
+    queries = parse_queries(config)
     if use_async:
-        return LitequeryAsync(database, queries)
-    return LitequerySync(database, queries)
+        return LitequeryAsync(config, queries)
+    return LitequerySync(config, queries)
 
 
 def dataclass_factory(cursor, row):
@@ -97,8 +102,8 @@ class LitequeryBase:
         ("busy_timeout", 5000),
     ]
 
-    def __init__(self, database, queries):
-        self._database = database
+    def __init__(self, config: Config, queries):
+        self.config = config
         self._conn = None
         self._in_transaction = False
         self._create_methods(queries)
@@ -146,7 +151,7 @@ class LitequeryAsync(LitequeryBase):
         if self._in_transaction and self._conn:
             yield self._conn
         else:
-            conn = await aiosqlite.connect(self._database, timeout=5)
+            conn = await aiosqlite.connect(self.config.database_path, timeout=5)
             conn.row_factory = dataclass_factory
             for pragma, value in self.PRAGMAS:
                 await conn.execute(f"pragma {pragma} = {value}")
@@ -160,7 +165,7 @@ class LitequeryAsync(LitequeryBase):
         if self._in_transaction and self._conn:
             yield self._conn
         else:
-            conn = await aiosqlite.connect(self._database, timeout=5)
+            conn = await aiosqlite.connect(self.config.database_path, timeout=5)
             conn.row_factory = dataclass_factory
             for pragma, value in self.PRAGMAS:
                 await conn.execute(f"pragma {pragma} = {value}")
@@ -212,7 +217,7 @@ class LitequerySync(LitequeryBase):
         if self._in_transaction and self._conn:
             yield self._conn
         else:
-            conn = sqlite3.connect(self._database, timeout=5)
+            conn = sqlite3.connect(self.config.database_path, timeout=5)
             conn.row_factory = dataclass_factory
             for pragma, value in self.PRAGMAS:
                 conn.execute(f"pragma {pragma} = {value}")
@@ -226,7 +231,7 @@ class LitequerySync(LitequeryBase):
         if self._in_transaction and self._conn:
             yield self._conn
         else:
-            conn = sqlite3.connect(self._database, timeout=5)
+            conn = sqlite3.connect(self.config.database_path, timeout=5)
             conn.row_factory = dataclass_factory
             for pragma, value in self.PRAGMAS:
                 conn.execute(f"pragma {pragma} = {value}")

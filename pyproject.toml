@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "litequery"
-version = "0.6.0"
+version = "0.6.1"
 authors = [{ name = "Dima Charnyshou", email = "imryche13@gmail.com" }]
 description = "A handy way to interact with an SQLite database from Python"
 readme = "README.md"

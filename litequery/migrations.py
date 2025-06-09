@@ -5,14 +5,16 @@ import sqlite3
 import textwrap
 from datetime import datetime
 
+from litequery.config import Config
 
-def migrate(db_path, migrations_dir):
-    conn = sqlite3.connect(db_path)
+
+def migrate(config: Config):
+    conn = sqlite3.connect(config.database_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     filenames = sort_migration_filenames(
-        os.path.basename(p) for p in glob.glob(f"{migrations_dir}/*.sql")
+        os.path.basename(p) for p in glob.glob(f"{config.migrations_path}/*.sql")
     )
     query = """
         create table if not exists migrations (
@@ -23,8 +25,8 @@ def migrate(db_path, migrations_dir):
     """
     cur.execute(textwrap.dedent(query).strip())
     migrations = cur.execute("select * from migrations order by run_at asc").fetchall()
-    migrations = {m["filename"] for m in migrations}
-    unapplied = sort_migration_filenames(set(filenames) - migrations)
+    migrations = [m["filename"] for m in migrations]
+    unapplied = sort_migration_filenames(set(filenames) - set(migrations))
 
     if not unapplied:
         print("Nothing to apply.")
@@ -33,7 +35,7 @@ def migrate(db_path, migrations_dir):
     print("Applying migrations:")
     for file in unapplied:
         print(f"- {file}")
-        with open(f"{migrations_dir}/{file}") as f:
+        with open(f"{config.migrations_path}/{file}") as f:
             cur.executescript(f.read())
 
         cur.execute(
@@ -42,13 +44,15 @@ def migrate(db_path, migrations_dir):
         )
         conn.commit()
 
-    generate_schema(cur, db_path)
+    generate_schema(cur, config)
 
     conn.close()
 
 
-def generate_schema(cur, db_path):
-    with open(os.path.join(os.path.dirname(db_path), "schema.sql"), "w") as f:
+def generate_schema(cur, config: Config):
+    with open(
+        os.path.join(os.path.dirname(config.database_path), "schema.sql"), "w"
+    ) as f:
         statements = cur.execute(
             "select sql from sqlite_master where sql is not null"
         ).fetchall()
@@ -66,12 +70,12 @@ def sort_migration_filenames(filenames):
     return sorted(filenames, key=get_sort_key)
 
 
-def create_migration(name, migrations_dir):
-    os.makedirs(migrations_dir, exist_ok=True)
+def create_migration(name, config: Config):
+    os.makedirs(config.migrations_path, exist_ok=True)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     filename = f"{timestamp}_{name.lower().replace(' ', '_')}.sql"
-    filepath = os.path.join(migrations_dir, filename)
+    filepath = os.path.join(config.migrations_path, filename)
 
     template = f"-- Created: {datetime.now().isoformat()}\n"
     with open(filepath, "w") as f:
