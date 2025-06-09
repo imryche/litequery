@@ -12,3 +12,5 @@ def start_shell(config: Config):
     except FileNotFoundError:
         print("Error: sqlite3 command not found")
         sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(0)
