@@ -2,6 +2,7 @@ import argparse
 
 from litequery.config import get_config
 from litequery.migrations import create_migration, migrate
+from litequery.shell import start_shell
 
 
 def main():
@@ -21,12 +22,15 @@ def main():
     )
 
     subparsers.add_parser("migrate", help="Run database migrations")
+    subparsers.add_parser("shell", help="Start SQLite shell")
 
     args = parser.parse_args()
     config = get_config()
 
     if args.command == "migrate":
         migrate(config)
+    elif args.command == "shell":
+        start_shell(config)
     elif args.command == "new":
         if args.new_command == "migration":
             create_migration(args.name, config)
