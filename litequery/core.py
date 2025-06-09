@@ -68,7 +68,7 @@ def parse_queries(config: Config):
     return queries
 
 
-def setup(db_path: str, use_async=False):
+def setup(db_path: str | None = None, *, use_async=False):
     config = get_config(db_path) if db_path else get_config()
     queries = parse_queries(config)
     if use_async:
