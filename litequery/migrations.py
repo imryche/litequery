@@ -3,6 +3,7 @@ import os
 import re
 import sqlite3
 import textwrap
+from datetime import datetime
 
 
 def migrate(db_path, migrations_dir):
@@ -63,3 +64,17 @@ def sort_migration_filenames(filenames):
         return float("inf")
 
     return sorted(filenames, key=get_sort_key)
+
+
+def create_migration(name, migrations_dir):
+    os.makedirs(migrations_dir, exist_ok=True)
+
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    filename = f"{timestamp}_{name.lower().replace(' ', '_')}.sql"
+    filepath = os.path.join(migrations_dir, filename)
+
+    template = f"-- Created: {datetime.now().isoformat()}\n"
+    with open(filepath, "w") as f:
+        f.write(template)
+
+    print(f"Migration created: {filename}")
