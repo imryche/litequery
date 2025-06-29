@@ -2,10 +2,12 @@ import glob
 import os
 import re
 import sqlite3
+from collections import OrderedDict
 from contextlib import asynccontextmanager, contextmanager
-from dataclasses import dataclass, fields, make_dataclass
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from typing import Any, Iterator
 
 import aiosqlite
 
@@ -30,6 +32,85 @@ class Query:
     sql: str
     args: list
     op: Op = Op.SELECT
+
+
+class Row:
+    def __init__(self, columns: list[str], values: list[Any]):
+        self._data = OrderedDict()
+        self._values: list[Any] = []
+
+        for col, val in zip(columns, values):
+            if isinstance(val, str) and _iso8601_pattern.match(val):
+                try:
+                    val = datetime.fromisoformat(val)
+                except ValueError:
+                    pass
+            self._values.append(val)
+            self._data[col] = val
+
+    def _available_columns(self) -> str:
+        return ", ".join([f"'{c}'" for c in self._data.keys()])
+
+    def __repr__(self) -> str:
+        items = [f"{col}={repr(val)}" for col, val in self._data.items()]
+        return f"{self.__class__.__name__}({', '.join(items)})"
+
+    def __getitem__(self, key: int | str) -> Any:
+        if isinstance(key, int):
+            try:
+                return self._values[key]
+            except IndexError:
+                raise IndexError(
+                    f"Row only has {len(self._values)} columns, "
+                    f"can't access index {key}"
+                )
+        try:
+            return self._data[key]
+        except KeyError:
+            raise KeyError(
+                f"No column '{key}' found. Available: {self._available_columns()}"
+            )
+
+    def __getattr__(self, name: str) -> Any:
+        error = AttributeError(
+            f"No column '{name}' found. Available: {self._available_columns()}"
+        )
+        if name.startswith("_"):
+            raise error
+
+        try:
+            return self._data[name]
+        except KeyError:
+            raise error
+
+    def __setitem__(self, key: int | str, value: Any) -> None:
+        raise TypeError("Row assignment not supported")
+
+    def __contains__(self, name: str) -> bool:
+        return name in self._data
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def __iter__(self) -> Iterator[Any]:
+        return iter(self._values)
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Row):
+            return False
+        return self._data == other._data
+
+    def keys(self) -> list[str]:
+        return list(self._data.keys())
+
+    def values(self) -> list[Any]:
+        return list(self._data.values())
+
+    def items(self) -> list[tuple[str, Any]]:
+        return list(self._data.items())
+
+    def to_dict(self) -> dict:
+        return dict(self._data)
 
 
 def parse_file_queries(file_path):
@@ -76,19 +157,9 @@ def setup(db_path: str | None = None, *, use_async=False):
     return LitequerySync(config, queries)
 
 
-def dataclass_factory(cursor, row):
-    fields, values = [], []
-    for desc, value in zip(cursor.description, row):
-        fields.append(desc[0])
-        if isinstance(value, str) and _iso8601_pattern.match(value):
-            try:
-                value = datetime.fromisoformat(value)
-            except ValueError:
-                pass
-        values.append(value)
-
-    cls = make_dataclass("Record", fields)
-    return cls(*values)
+def row_factory(cursor, row):
+    columns = [desc[0] for desc in cursor.description]
+    return Row(columns, row)
 
 
 class LitequeryBase:
@@ -125,7 +196,7 @@ class LitequeryAsync(LitequeryBase):
                 return await cur.fetchone()
             if query.op == Op.SELECT_VALUE:
                 row = await cur.fetchone()
-                return getattr(row, fields(row)[0].name) if row else None
+                return row[0] if row else None
             if query.op == Op.MODIFY:
                 if not self._in_transaction:
                     await conn.commit()
@@ -152,7 +223,7 @@ class LitequeryAsync(LitequeryBase):
             yield self._conn
         else:
             conn = await aiosqlite.connect(self.config.database_path, timeout=5)
-            conn.row_factory = dataclass_factory
+            conn.row_factory = row_factory
             for pragma, value in self.PRAGMAS:
                 await conn.execute(f"pragma {pragma} = {value}")
             try:
@@ -166,7 +237,7 @@ class LitequeryAsync(LitequeryBase):
             yield self._conn
         else:
             conn = await aiosqlite.connect(self.config.database_path, timeout=5)
-            conn.row_factory = dataclass_factory
+            conn.row_factory = row_factory
             for pragma, value in self.PRAGMAS:
                 await conn.execute(f"pragma {pragma} = {value}")
             try:
@@ -193,7 +264,7 @@ class LitequerySync(LitequeryBase):
             return cur.fetchone()
         if query.op == Op.SELECT_VALUE:
             row = cur.fetchone()
-            return getattr(row, fields(row)[0].name) if row else None
+            return row[0] if row else None
         if query.op == Op.MODIFY:
             if not self._in_transaction:
                 conn.commit()
@@ -218,7 +289,7 @@ class LitequerySync(LitequeryBase):
             yield self._conn
         else:
             conn = sqlite3.connect(self.config.database_path, timeout=5)
-            conn.row_factory = dataclass_factory
+            conn.row_factory = row_factory
             for pragma, value in self.PRAGMAS:
                 conn.execute(f"pragma {pragma} = {value}")
             try:
@@ -232,7 +303,7 @@ class LitequerySync(LitequeryBase):
             yield self._conn
         else:
             conn = sqlite3.connect(self.config.database_path, timeout=5)
-            conn.row_factory = dataclass_factory
+            conn.row_factory = row_factory
             for pragma, value in self.PRAGMAS:
                 conn.execute(f"pragma {pragma} = {value}")
             try:

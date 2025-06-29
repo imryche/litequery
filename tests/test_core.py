@@ -1,6 +1,5 @@
 import os
 import sqlite3
-from dataclasses import fields
 from datetime import datetime
 
 import pytest
@@ -226,7 +225,7 @@ async def test_pragmas_configured_async(lq_async):
         for pragma, expected_value in expected_pragmas:
             async with conn.execute(f"pragma {pragma}") as cursor:
                 result = await cursor.fetchone()
-                assert getattr(result, fields(result)[0].name, None) == expected_value
+                assert result[0] == expected_value
 
 
 def test_pragmas_configured_sync(lq_sync):
@@ -242,4 +241,4 @@ def test_pragmas_configured_sync(lq_sync):
     with lq_sync.connect() as conn:
         for pragma, expected_value in expected_pragmas:
             result = conn.execute(f"pragma {pragma}").fetchone()
-            assert getattr(result, fields(result)[0].name, None) == expected_value
+            assert result[0] == expected_value
