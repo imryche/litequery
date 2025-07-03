@@ -81,3 +81,65 @@ def test_creates_schema(temp_db, temp_migrations_dir):
             CREATE TABLE users (id integer primary key autoincrement);
         """
         assert f.read().strip() == textwrap.dedent(schema_content).strip()
+
+
+def test_migration_rollback_on_failure(temp_db: Path, temp_migrations_dir: Path):
+    """Test that a failing migration rolls back completely"""
+    # Create a successful migration first
+    create_migration_file(
+        temp_migrations_dir,
+        "001_initial.sql",
+        "create table users (id integer primary key autoincrement);",
+    )
+
+    # First migration should succeed
+    migrate(get_config(str(temp_db)))
+
+    conn = sqlite3.connect(temp_db)
+    cursor = conn.cursor()
+
+    # Verify first migration was applied
+    applied_migrations = cursor.execute(
+        "select filename from migrations order by run_at"
+    ).fetchall()
+    assert len(applied_migrations) == 1
+    assert applied_migrations[0][0] == "001_initial.sql"
+
+    # Verify users table exists
+    cursor.execute("select count(*) from users")
+    assert cursor.fetchone()[0] == 0
+
+    conn.close()
+
+    # Now create a migration that will fail partway through
+    failing_migration = textwrap.dedent("""
+        create table products (id integer primary key autoincrement);
+        insert into products (id) values (1);
+        create table invalid_table (id integer primary key, id integer);
+    """).strip()
+
+    create_migration_file(temp_migrations_dir, "002_failing.sql", failing_migration)
+
+    # Try to apply the failing migration
+    with pytest.raises(Exception):
+        migrate(get_config(str(temp_db)))
+
+    # Verify the failing migration was not recorded and no partial changes were made
+    conn = sqlite3.connect(temp_db)
+    cursor = conn.cursor()
+
+    applied_migrations = cursor.execute(
+        "select filename from migrations order by run_at"
+    ).fetchall()
+    # Should still be only 1 migration (the successful one)
+    assert len(applied_migrations) == 1
+    assert applied_migrations[0][0] == "001_initial.sql"
+
+    # Verify products table was not created (rollback worked)
+    try:
+        cursor.execute("select count(*) from products")
+        assert False, "products table should not exist"
+    except sqlite3.OperationalError as e:
+        assert "no such table: products" in str(e)
+
+    conn.close()

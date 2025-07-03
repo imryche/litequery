@@ -35,14 +35,24 @@ def migrate(config: Config):
     print("Applying migrations:")
     for file in unapplied:
         print(f"- {file}")
-        with open(f"{config.migrations_path}/{file}") as f:
-            cur.executescript(f.read())
-
-        cur.execute(
-            "insert into migrations (filename) values (:filename)",
-            {"filename": file},
-        )
-        conn.commit()
+        try:
+            conn.execute("BEGIN")
+            with open(f"{config.migrations_path}/{file}") as f:
+                migration_sql = f.read()
+                # Split by semicolon and execute each statement
+                statements = [s.strip() for s in migration_sql.split(';') if s.strip()]
+                for statement in statements:
+                    cur.execute(statement)
+            
+            cur.execute(
+                "insert into migrations (filename) values (:filename)",
+                {"filename": file},
+            )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"Error applying migration {file}: {e}")
+            raise
 
     generate_schema(cur, config)
 
