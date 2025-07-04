@@ -5,6 +5,8 @@ import sqlite3
 import textwrap
 from datetime import datetime
 
+import sqlparse
+
 from litequery.config import Config
 
 
@@ -39,11 +41,11 @@ def migrate(config: Config):
             conn.execute("BEGIN")
             with open(f"{config.migrations_path}/{file}") as f:
                 migration_sql = f.read()
-                # Split by semicolon and execute each statement
-                statements = [s.strip() for s in migration_sql.split(';') if s.strip()]
-                for statement in statements:
-                    cur.execute(statement)
-            
+
+            statements = sqlparse.split(migration_sql)
+            for statement in statements:
+                cur.execute(statement)
+
             cur.execute(
                 "insert into migrations (filename) values (:filename)",
                 {"filename": file},
