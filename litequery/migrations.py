@@ -63,7 +63,7 @@ def migrate(config: Config):
 
 def generate_schema(cur, config: Config):
     with open(
-        os.path.join(os.path.dirname(config.database_path), "schema.sql"), "w"
+        os.path.join(os.path.dirname(config.migrations_path), "schema.sql"), "w"
     ) as f:
         statements = cur.execute(
             "select sql from sqlite_master where sql is not null"
