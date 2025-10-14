@@ -3,13 +3,12 @@ import os
 import re
 import sqlite3
 from collections import OrderedDict
-from contextlib import asynccontextmanager, contextmanager
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, Iterator
-
-import aiosqlite
+from typing import Any
 
 from litequery.config import Config, get_config
 
@@ -149,12 +148,10 @@ def parse_queries(config: Config):
     return queries
 
 
-def setup(db_path: str | None = None, *, use_async=False):
+def setup(db_path: str | None = None):
     config = get_config(db_path) if db_path else get_config()
     queries = parse_queries(config)
-    if use_async:
-        return LitequeryAsync(config, queries)
-    return LitequerySync(config, queries)
+    return Litequery(config, queries)
 
 
 def row_factory(cursor, row):
@@ -162,7 +159,7 @@ def row_factory(cursor, row):
     return Row(columns, row)
 
 
-class LitequeryBase:
+class Litequery:
     PRAGMAS = [
         ("journal_mode", "wal"),
         ("foreign_keys", 1),
@@ -186,76 +183,6 @@ class LitequeryBase:
     def _create_method(self, query):
         raise NotImplementedError("This method should be overridden!")
 
-
-class LitequeryAsync(LitequeryBase):
-    async def _execute_query(self, conn, query: Query, kwargs: dict):
-        async with conn.execute(query.sql, kwargs) as cur:
-            if query.op == Op.SELECT:
-                return await cur.fetchall()
-            if query.op == Op.SELECT_ONE:
-                return await cur.fetchone()
-            if query.op == Op.SELECT_VALUE:
-                row = await cur.fetchone()
-                return row[0] if row else None
-            if query.op == Op.MODIFY:
-                if not self._in_transaction:
-                    await conn.commit()
-                return cur.rowcount
-            if query.op == Op.INSERT_RETURNING:
-                if not self._in_transaction:
-                    await conn.commit()
-                return cur.lastrowid
-
-    def _create_method(self, query: Query):
-        # TODO: check for invalid named arguments
-        # TODO: add support for positional arguments
-        async def query_method(**kwargs):
-            if self._in_transaction and self._conn:
-                return await self._execute_query(self._conn, query, kwargs)
-            async with self.connect() as conn:
-                return await self._execute_query(conn, query, kwargs)
-
-        return query_method
-
-    @asynccontextmanager
-    async def connect(self):
-        if self._in_transaction and self._conn:
-            yield self._conn
-        else:
-            conn = await aiosqlite.connect(self.config.database_path, timeout=5)
-            conn.row_factory = row_factory
-            for pragma, value in self.PRAGMAS:
-                await conn.execute(f"pragma {pragma} = {value}")
-            try:
-                yield conn
-            finally:
-                await conn.close()
-
-    @asynccontextmanager
-    async def transaction(self):
-        if self._in_transaction and self._conn:
-            yield self._conn
-        else:
-            conn = await aiosqlite.connect(self.config.database_path, timeout=5)
-            conn.row_factory = row_factory
-            for pragma, value in self.PRAGMAS:
-                await conn.execute(f"pragma {pragma} = {value}")
-            try:
-                self._conn = conn
-                self._in_transaction = True
-                await conn.execute("begin")
-                yield
-                await conn.commit()
-            except Exception:
-                await conn.rollback()
-                raise
-            finally:
-                self._conn = None
-                self._in_transaction = False
-                await conn.close()
-
-
-class LitequerySync(LitequeryBase):
     def _execute_query(self, conn, query: Query, kwargs: dict):
         cur = conn.execute(query.sql, kwargs)
         if query.op == Op.SELECT:
