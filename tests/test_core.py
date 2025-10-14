@@ -51,7 +51,7 @@ def setup_database():
 
 
 @pytest.fixture
-def lq_sync(setup_database):
+def lq(setup_database):
     return litequery.setup(DATABASE_PATH)
 
 
@@ -60,8 +60,8 @@ def test_parse_queries_from_directory():
     assert len(queries) == 6
 
 
-def test_get_all_users_sync(lq_sync):
-    users = lq_sync.get_all_users()
+def test_get_all_users(lq):
+    users = lq.get_all_users()
     assert_all_users(users)
 
 
@@ -73,66 +73,66 @@ def assert_all_users(users):
     assert isinstance(users[1].created_at, datetime)
 
 
-def test_get_user_by_id_sync(lq_sync):
-    user = lq_sync.get_user_by_id(id=1)
+def test_get_user_by_id(lq):
+    user = lq.get_user_by_id(id=1)
     assert user.email == "alice@example.com"
 
 
-def test_get_last_user_id_sync(lq_sync):
-    user_id = lq_sync.get_last_user_id()
+def test_get_last_user_id(lq):
+    user_id = lq.get_last_user_id()
     assert user_id == 2
 
 
-def test_insert_user_sync(lq_sync):
-    user_id = lq_sync.insert_user(name="Eve", email="eve@example.com")
+def test_insert_user(lq):
+    user_id = lq.insert_user(name="Eve", email="eve@example.com")
     assert user_id == 3
-    user = lq_sync.get_user_by_id(id=user_id)
+    user = lq.get_user_by_id(id=user_id)
     assert user.name == "Eve"
     assert user.email == "eve@example.com"
 
 
-def test_delete_all_users_sync(lq_sync):
-    users = lq_sync.get_all_users()
+def test_delete_all_users(lq):
+    users = lq.get_all_users()
     assert len(users) == 2
-    rowcount = lq_sync.delete_all_users()
+    rowcount = lq.delete_all_users()
     assert rowcount == 2
-    users = lq_sync.get_all_users()
+    users = lq.get_all_users()
     assert len(users) == 0
 
 
-def test_transaction_commit_sync(lq_sync):
-    with lq_sync.transaction():
-        lq_sync.insert_user(name="Charlie", email="charlie@example.com")
-        lq_sync.insert_user(name="Eve", email="eve@example.com")
+def test_transaction_commit(lq):
+    with lq.transaction():
+        lq.insert_user(name="Charlie", email="charlie@example.com")
+        lq.insert_user(name="Eve", email="eve@example.com")
 
-    users = lq_sync.get_all_users()
+    users = lq.get_all_users()
     assert len(users) == 4
     assert users[2].name, users[2].email == ("Charlie", "charlie@example.com")
     assert users[3].name, users[3].email == ("Eve", "eve@example.com")
 
 
-def test_transaction_rollback_sync(lq_sync):
+def test_transaction_rollback(lq):
     with pytest.raises(Exception):
-        with lq_sync.transaction():
-            lq_sync.insert_user(name="Charlie", email="charlie@example.com")
+        with lq.transaction():
+            lq.insert_user(name="Charlie", email="charlie@example.com")
             raise Exception("Force rollback")
-            lq_sync.insert_user(name="Eve", email="eve@example.com")
+            lq.insert_user(name="Eve", email="eve@example.com")
 
-    users = lq_sync.get_all_users()
+    users = lq.get_all_users()
     assert len(users) == 2
 
 
-def test_foreign_keys_enabled_sync(lq_sync):
-    events = lq_sync.get_all_events()
+def test_foreign_keys_enabled(lq):
+    events = lq.get_all_events()
     assert len(events) == 2
 
-    lq_sync.delete_all_users()
+    lq.delete_all_users()
 
-    events = lq_sync.get_all_events()
+    events = lq.get_all_events()
     assert len(events) == 0
 
 
-def test_pragmas_configured_sync(lq_sync):
+def test_pragmas_configured(lq):
     expected_pragmas = [
         ("journal_mode", "wal"),
         ("foreign_keys", 1),
@@ -142,7 +142,7 @@ def test_pragmas_configured_sync(lq_sync):
         ("cache_size", 2000),
         ("busy_timeout", 5000),
     ]
-    with lq_sync.connect() as conn:
+    with lq.connect() as conn:
         for pragma, expected_value in expected_pragmas:
             result = conn.execute(f"pragma {pragma}").fetchone()
             assert result[0] == expected_value
