@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from dataclasses import dataclass
 from datetime import datetime
 
 import pytest
@@ -76,6 +77,22 @@ def assert_all_users(users):
 def test_get_user_by_id(lq):
     user = lq.get_user_by_id(id=1)
     assert user.email == "alice@example.com"
+
+
+def test_get_user_into(lq):
+    @dataclass
+    class User:
+        id: int
+        name: str
+        email: str
+        created_at: datetime
+
+    user = lq.get_user_by_id(id=1).into(User)
+    assert isinstance(user, User)
+
+    users = lq.get_all_users().into(User)
+    breakpoint()
+    assert isinstance(users[0], User)
 
 
 def test_get_last_user_id(lq):

@@ -111,6 +111,14 @@ class Row:
     def to_dict(self) -> dict:
         return dict(self._data)
 
+    def into(self, cls):
+        return cls(**self.to_dict())
+
+
+class Rows(list):
+    def into(self, cls):
+        return [cls(**row.to_dict()) for row in self]
+
 
 def parse_file_queries(file_path):
     with open(file_path) as f:
@@ -183,23 +191,25 @@ class Litequery:
     def _create_method(self, query):
         raise NotImplementedError("This method should be overridden!")
 
-    def _execute_query(self, conn, query: Query, kwargs: dict):
-        cur = conn.execute(query.sql, kwargs)
+    def _execute_query(self, conn: sqlite3.Connection, query: Query, kwargs: dict):
+        cursor = conn.cursor()
+        cursor.execute(query.sql, kwargs)
+
         if query.op == Op.SELECT:
-            return cur.fetchall()
+            return Rows(cursor.fetchall())
         if query.op == Op.SELECT_ONE:
-            return cur.fetchone()
+            return cursor.fetchone()
         if query.op == Op.SELECT_VALUE:
-            row = cur.fetchone()
+            row = cursor.fetchone()
             return row[0] if row else None
         if query.op == Op.MODIFY:
             if not self._in_transaction:
                 conn.commit()
-            return cur.rowcount
+            return cursor.rowcount
         if query.op == Op.INSERT_RETURNING:
             if not self._in_transaction:
                 conn.commit()
-            return cur.lastrowid
+            return cursor.lastrowid
 
     def _create_method(self, query: Query):
         def query_method(**kwargs):
