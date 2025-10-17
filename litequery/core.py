@@ -218,8 +218,8 @@ class Litequery:
         else:
             conn = sqlite3.connect(self.config.database_path, timeout=5)
             conn.row_factory = row_factory
-            for pragma, value in self.PRAGMAS:
-                conn.execute(f"pragma {pragma} = {value}")
+            pragmas = (f"pragma {p} = {v}" for p, v in self.PRAGMAS)
+            conn.executescript(";".join(pragmas))
             try:
                 yield conn
             finally:
