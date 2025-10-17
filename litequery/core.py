@@ -171,6 +171,15 @@ class Litequery:
 
     def _create_methods(self, queries: list[Query]):
         for query in queries:
+            if hasattr(self, query.name):
+                if hasattr(Litequery, query.name):
+                    raise NameError(f"Query name {query.name} isn't allowed.")
+
+                if callable(getattr(self, query.name)):
+                    raise NameError(
+                        f"Duplicate query name '{query.name}'. "
+                        "Each query must have a unique name."
+                    )
             setattr(self, query.name, self._create_method(query))
 
     def _execute_query(self, conn: sqlite3.Connection, query: Query, kwargs: dict):
