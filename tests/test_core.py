@@ -91,7 +91,6 @@ def test_get_user_into(lq):
     assert isinstance(user, User)
 
     users = lq.get_all_users().into(User)
-    breakpoint()
     assert isinstance(users[0], User)
 
 

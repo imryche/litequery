@@ -2,7 +2,6 @@ import glob
 import os
 import re
 import sqlite3
-from collections import OrderedDict
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -11,10 +10,6 @@ from enum import Enum
 from typing import Any
 
 from litequery.config import Config, get_config
-
-_iso8601_pattern = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?$"
-)
 
 
 class Op(str, Enum):
@@ -35,23 +30,28 @@ class Query:
 
 class Row:
     def __init__(self, columns: list[str], values: list[Any]):
-        self._data = OrderedDict()
-        self._values: list[Any] = []
+        if len(set(columns)) != len(columns):
+            dups = [c for c in columns if columns.count() > 1]
+            raise ValueError(f"Duplicate columns: {set(dups)}. Use AS to alias.")
 
-        for col, val in zip(columns, values):
-            if isinstance(val, str) and _iso8601_pattern.match(val):
-                try:
-                    val = datetime.fromisoformat(val)
-                except ValueError:
-                    pass
-            self._values.append(val)
-            self._data[col] = val
+        self._values = tuple(
+            self._parse_datetime(v) if isinstance(v, str) else v for v in values
+        )
+        self._index = {c: i for i, c in enumerate(columns)}
+
+    def _parse_datetime(self, value: str):
+        if 19 <= len(value) <= 32 and value[0].isdigit():
+            try:
+                return datetime.fromisoformat(value)
+            except ValueError:
+                pass
+        return value
 
     def _available_columns(self) -> str:
-        return ", ".join([f"'{c}'" for c in self._data.keys()])
+        return ", ".join([f"'{c}'" for c in self._index.keys()])
 
     def __repr__(self) -> str:
-        items = [f"{col}={repr(val)}" for col, val in self._data.items()]
+        items = [f"{col}={self._values[idx]!r}" for col, idx in self._index.items()]
         return f"{self.__class__.__name__}({', '.join(items)})"
 
     def __getitem__(self, key: int | str) -> Any:
@@ -64,7 +64,7 @@ class Row:
                     f"can't access index {key}"
                 )
         try:
-            return self._data[key]
+            return self._values[self._index[key]]
         except KeyError:
             raise KeyError(
                 f"No column '{key}' found. Available: {self._available_columns()}"
@@ -78,15 +78,9 @@ class Row:
             raise error
 
         try:
-            return self._data[name]
+            return self._values[self._index[name]]
         except KeyError:
             raise error
-
-    def __setitem__(self, key: int | str, value: Any) -> None:
-        raise TypeError("Row assignment not supported")
-
-    def __contains__(self, name: str) -> bool:
-        return name in self._data
 
     def __len__(self) -> int:
         return len(self._values)
@@ -97,19 +91,10 @@ class Row:
     def __eq__(self, other) -> bool:
         if not isinstance(other, Row):
             return False
-        return self._data == other._data
-
-    def keys(self) -> list[str]:
-        return list(self._data.keys())
-
-    def values(self) -> list[Any]:
-        return list(self._data.values())
-
-    def items(self) -> list[tuple[str, Any]]:
-        return list(self._data.items())
+        return self._values == other._values
 
     def to_dict(self) -> dict:
-        return dict(self._data)
+        return dict(zip(self._index.keys(), self._values))
 
     def into(self, cls):
         return cls(**self.to_dict())
@@ -117,7 +102,7 @@ class Row:
 
 class Rows(list):
     def into(self, cls):
-        return [cls(**row.to_dict()) for row in self]
+        return Rows([cls(**row.to_dict()) for row in self])
 
 
 def parse_file_queries(file_path):
@@ -127,7 +112,7 @@ def parse_file_queries(file_path):
 
     queries = []
     op_pattern = "|".join("\\" + "\\".join(list(op.value)) for op in Op if op.value)
-    pattern = rf"^([a-z_][a-z0-9_-]*)({op_pattern})?$"
+    pattern = rf"^([a-z_][a-z0-9_]*)({op_pattern})?$"
     for query_name, sql in raw_queries:
         match = re.match(pattern, query_name)
         if not match:
@@ -187,9 +172,6 @@ class Litequery:
     def _create_methods(self, queries: list[Query]):
         for query in queries:
             setattr(self, query.name, self._create_method(query))
-
-    def _create_method(self, query):
-        raise NotImplementedError("This method should be overridden!")
 
     def _execute_query(self, conn: sqlite3.Connection, query: Query, kwargs: dict):
         cursor = conn.cursor()
