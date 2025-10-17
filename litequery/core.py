@@ -29,6 +29,8 @@ class Query:
 
 
 class Row:
+    __slots__ = ("_values", "_index")
+
     def __init__(self, columns: list[str], values: list[Any]):
         if len(set(columns)) != len(columns):
             dups = [c for c in columns if columns.count(c) > 1]
