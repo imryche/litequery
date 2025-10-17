@@ -31,7 +31,7 @@ class Query:
 class Row:
     def __init__(self, columns: list[str], values: list[Any]):
         if len(set(columns)) != len(columns):
-            dups = [c for c in columns if columns.count() > 1]
+            dups = [c for c in columns if columns.count(c) > 1]
             raise ValueError(f"Duplicate columns: {set(dups)}. Use AS to alias.")
 
         self._values = tuple(
