@@ -37,6 +37,7 @@ def lq(tmp_path):
         conn.commit()
     lq = litequery.setup(db_path, queries_path)
     yield lq
+    lq.close()
 
 
 def test_parse_queries_from_directory():

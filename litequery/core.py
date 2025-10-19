@@ -253,3 +253,8 @@ class Litequery:
         finally:
             self._conn = None
             self._in_transaction = False
+
+    def close(self) -> None:
+        if hasattr(self._thread_local, "conn"):
+            self._thread_local.conn.close()
+            del self._thread_local.conn
