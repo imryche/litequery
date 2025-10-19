@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from litequery.config import Config, get_config
@@ -130,23 +131,21 @@ def parse_file_queries(file_path):
     return queries
 
 
-def parse_queries(config: Config):
+def parse_queries(path: Path) -> list[Query]:
     queries = []
-    if os.path.isdir(config.queries_path):
-        for file_path in glob.glob(os.path.join(config.queries_path, "*.sql")):
+    if os.path.isdir(path):
+        for file_path in glob.glob(os.path.join(path, "*.sql")):
             queries.extend(parse_file_queries(file_path))
-    elif os.path.isfile(config.queries_path):
-        queries.extend(parse_file_queries(config.queries_path))
+    elif os.path.isfile(path):
+        queries.extend(parse_file_queries(path))
     else:
-        raise ValueError(
-            f"Path {config.queries_path} is neither a file nor a directory."
-        )
+        raise ValueError(f"Path {path} is neither a file nor a directory.")
     return queries
 
 
 def setup(db_path: str | None = None, queries_path: str | None = None):
     config = get_config(db_path, queries_path) if db_path else get_config()
-    queries = parse_queries(config)
+    queries = parse_queries(config.queries_path)
     return Litequery(config, queries)
 
 

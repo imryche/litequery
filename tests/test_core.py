@@ -1,14 +1,12 @@
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
 import litequery
-from litequery.config import get_config
 from litequery.core import parse_queries
-
-DATABASE_PATH = "tests/users.db"
 
 
 @pytest.fixture
@@ -42,7 +40,8 @@ def lq(tmp_path):
 
 
 def test_parse_queries_from_directory():
-    queries = parse_queries(get_config(DATABASE_PATH))
+    queries_path = Path("tests/queries").resolve()
+    queries = parse_queries(queries_path)
     assert len(queries) == 6
 
 
