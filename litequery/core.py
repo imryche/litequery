@@ -2,6 +2,7 @@ import glob
 import os
 import re
 import sqlite3
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -143,8 +144,8 @@ def parse_queries(config: Config):
     return queries
 
 
-def setup(db_path: str | None = None):
-    config = get_config(db_path) if db_path else get_config()
+def setup(db_path: str | None = None, queries_path: str | None = None):
+    config = get_config(db_path, queries_path) if db_path else get_config()
     queries = parse_queries(config)
     return Litequery(config, queries)
 
@@ -167,9 +168,21 @@ class Litequery:
 
     def __init__(self, config: Config, queries):
         self.config = config
-        self._conn = None
+        self._thread_local = threading.local()
         self._in_transaction = False
         self._create_methods(queries)
+
+    def _create_connection(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.config.database_path, timeout=5)
+        conn.row_factory = row_factory
+        pragmas = (f"pragma {p} = {v}" for p, v in self.PRAGMAS)
+        conn.executescript(";".join(pragmas))
+        return conn
+
+    def _get_connection(self) -> sqlite3.Connection:
+        if not hasattr(self._thread_local, "conn"):
+            self._thread_local.conn = self._create_connection()
+        return self._thread_local.conn
 
     def _create_methods(self, queries: list[Query]):
         for query in queries:
@@ -184,68 +197,60 @@ class Litequery:
                     )
             setattr(self, query.name, self._create_method(query))
 
-    def _execute_query(self, conn: sqlite3.Connection, query: Query, kwargs: dict):
-        cursor = conn.cursor()
-        cursor.execute(query.sql, kwargs)
+    def _execute_query(
+        self,
+        sql: str,
+        op: Op,
+        parameters: dict | None = None,
+    ):
+        if not parameters:
+            parameters = {}
 
-        if query.op == Op.SELECT:
+        conn = self._get_connection()
+        cursor = conn.execute(sql, parameters)
+
+        if op == Op.SELECT:
             return Rows(cursor.fetchall())
-        if query.op == Op.SELECT_ONE:
+        if op == Op.SELECT_ONE:
             return cursor.fetchone()
-        if query.op == Op.SELECT_VALUE:
+        if op == Op.SELECT_VALUE:
             row = cursor.fetchone()
             return row[0] if row else None
-        if query.op == Op.MODIFY:
+        if op == Op.MODIFY:
             if not self._in_transaction:
                 conn.commit()
             return cursor.rowcount
-        if query.op == Op.INSERT_RETURNING:
+        if op == Op.INSERT_RETURNING:
             if not self._in_transaction:
                 conn.commit()
             return cursor.lastrowid
 
     def _create_method(self, query: Query):
-        def query_method(**kwargs):
-            if self._in_transaction and self._conn:
-                return self._execute_query(self._conn, query, kwargs)
-            with self.connect() as conn:
-                return self._execute_query(conn, query, kwargs)
+        def query_method(**parameters):
+            return self._execute_query(query.sql, query.op, parameters)
 
         return query_method
 
-    @contextmanager
-    def connect(self):
-        if self._in_transaction and self._conn:
-            yield self._conn
-        else:
-            conn = sqlite3.connect(self.config.database_path, timeout=5)
-            conn.row_factory = row_factory
-            pragmas = (f"pragma {p} = {v}" for p, v in self.PRAGMAS)
-            conn.executescript(";".join(pragmas))
-            try:
-                yield conn
-            finally:
-                conn.close()
+    def raw(self, sql: str, **kwargs):
+        return self._execute_query(sql, Op.SELECT, kwargs)
+
+    def raw_one(self, sql: str, **kwargs):
+        return self._execute_query(sql, Op.SELECT_ONE, kwargs)
+
+    def raw_value(self, sql: str, **kwargs):
+        return self._execute_query(sql, Op.SELECT_VALUE, kwargs)
 
     @contextmanager
     def transaction(self):
-        if self._in_transaction and self._conn:
-            yield self._conn
-        else:
-            conn = sqlite3.connect(self.config.database_path, timeout=5)
-            conn.row_factory = row_factory
-            for pragma, value in self.PRAGMAS:
-                conn.execute(f"pragma {pragma} = {value}")
-            try:
-                self._conn = conn
-                self._in_transaction = True
-                conn.execute("begin")
-                yield
-                conn.commit()
-            except Exception:
-                conn.rollback()
-                raise
-            finally:
-                self._conn = None
-                self._in_transaction = False
-                conn.close()
+        conn = self._get_connection()
+        try:
+            self._in_transaction = True
+            conn.execute("begin immediate")
+            yield
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            self._conn = None
+            self._in_transaction = False

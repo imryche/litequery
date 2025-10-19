@@ -1,4 +1,3 @@
-import os
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
@@ -13,47 +12,33 @@ DATABASE_PATH = "tests/users.db"
 
 
 @pytest.fixture
-def setup_database():
-    with sqlite3.connect(DATABASE_PATH) as conn:
-        conn.execute(
-            """
+def lq(tmp_path):
+    db_path = tmp_path / "test.db"
+    queries_path = "tests/queries"
+
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript("""
             create table users (
                 id integer primary key autoincrement,
                 name text not null,
                 email text not null,
                 created_at datetime not null default current_timestamp
-            )
-            """
-        )
-        conn.execute(
-            """
+            );
             create table events (
                 id integer primary key autoincrement,
                 user_id integer not null,
                 name text not null,
                 created_at datetime not null default current_timestamp,
                 foreign key (user_id) references users (id) on delete cascade
-            )
-            """
-        )
-        conn.execute(
-            "insert into users (id, name, email) values (1, 'Alice', 'alice@example.com')"
-        )
-        conn.execute(
-            "insert into users (id, name, email) values (2, 'Bob', 'bob@example.com')"
-        )
-        conn.execute("insert into events (user_id, name) values (1, 'user_logged_in')")
-        conn.execute(
-            "insert into events (user_id, name) values (2, 'password_changed')"
-        )
+            );
+            insert into users (id, name, email) values (1, 'Alice', 'alice@example.com');
+            insert into users (id, name, email) values (2, 'Bob', 'bob@example.com');
+            insert into events (user_id, name) values (1, 'user_logged_in');
+            insert into events (user_id, name) values (2, 'password_changed');
+        """)
         conn.commit()
-    yield
-    os.remove(DATABASE_PATH)
-
-
-@pytest.fixture
-def lq(setup_database):
-    return litequery.setup(DATABASE_PATH)
+    lq = litequery.setup(db_path, queries_path)
+    yield lq
 
 
 def test_parse_queries_from_directory():
@@ -158,7 +143,7 @@ def test_pragmas_configured(lq):
         ("cache_size", 2000),
         ("busy_timeout", 5000),
     ]
-    with lq.connect() as conn:
-        for pragma, expected_value in expected_pragmas:
-            result = conn.execute(f"pragma {pragma}").fetchone()
-            assert result[0] == expected_value
+
+    for pragma, expected_value in expected_pragmas:
+        value = lq.raw_value(f"pragma {pragma}")
+        assert value == expected_value

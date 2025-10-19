@@ -44,14 +44,16 @@ class Config:
         self.migrations_path.mkdir(parents=True, exist_ok=True)
 
 
-def get_config(db_path: str | None = None):
+def get_config(db_path: str | None = None, queries_path: str | None = None):
     database_path = Path(db_path).resolve() if db_path else get_database_path()
+    queries_path = Path(queries_path).resolve() if queries_path else queries_path
+
     root_dir = database_path.parent
     cwd = Path.cwd().resolve()
 
     queries_found, migrations_found = _autodiscover_paths(root_dir, cwd)
 
-    queries_path = queries_found or (root_dir / "queries")
+    queries_path = queries_path or queries_found or (root_dir / "queries")
     migrations_path = migrations_found or (root_dir / "migrations")
 
     config = Config(
