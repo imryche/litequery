@@ -251,7 +251,6 @@ class Litequery:
             conn.rollback()
             raise
         finally:
-            self._conn = None
             self._in_transaction = False
 
     def close(self) -> None:
