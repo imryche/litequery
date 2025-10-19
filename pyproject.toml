@@ -14,7 +14,9 @@ classifiers = [
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
 ]
-dependencies = ["aiosqlite", "sqlparse>=0.5.3"]
+dependencies = [
+ "sqlparse>=0.5.3",
+]
 
 [project.urls]
 Homepage = "https://github.com/imryche/litequery"
@@ -36,5 +38,4 @@ dev = [
   "ipdb>=0.13.13",
   "mypy>=1.14.1",
   "pytest>=8.4.1",
-  "pytest-asyncio>=1.0.0",
 ]
