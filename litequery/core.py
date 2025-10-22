@@ -168,11 +168,12 @@ class Litequery:
     def __init__(self, config: Config, queries):
         self.config = config
         self._thread_local = threading.local()
-        self._in_transaction = False
         self._create_methods(queries)
 
     def _create_connection(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.config.database_path, timeout=5)
+        conn = sqlite3.connect(
+            self.config.database_path, timeout=30, isolation_level=None
+        )
         conn.row_factory = row_factory
         pragmas = (f"pragma {p} = {v}" for p, v in self.PRAGMAS)
         conn.executescript(";".join(pragmas))
@@ -216,12 +217,8 @@ class Litequery:
             row = cursor.fetchone()
             return row[0] if row else None
         if op == Op.MODIFY:
-            if not self._in_transaction:
-                conn.commit()
             return cursor.rowcount
         if op == Op.INSERT_RETURNING:
-            if not self._in_transaction:
-                conn.commit()
             return cursor.lastrowid
 
     def _create_method(self, query: Query):
@@ -242,16 +239,16 @@ class Litequery:
     @contextmanager
     def transaction(self):
         conn = self._get_connection()
+        if conn.in_transaction:
+            raise RuntimeError("Nested transactions are not supported")
         try:
-            self._in_transaction = True
-            conn.execute("begin immediate")
+            conn.execute("BEGIN IMMEDIATE")
             yield
-            conn.commit()
         except Exception:
             conn.rollback()
             raise
-        finally:
-            self._in_transaction = False
+        else:
+            conn.commit()
 
     def close(self) -> None:
         if hasattr(self._thread_local, "conn"):
