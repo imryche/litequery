@@ -171,7 +171,9 @@ class Litequery:
 
     def _create_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(
-            self.config.database_path, timeout=30, isolation_level=None
+            self.config.database_path,
+            timeout=30,
+            autocommit=True,
         )
         conn.row_factory = row_factory
         pragmas = (f"pragma {p} = {v}" for p, v in self.PRAGMAS)
@@ -240,14 +242,17 @@ class Litequery:
         conn = self._get_connection()
         if conn.in_transaction:
             raise RuntimeError("Nested transactions are not supported")
+
+        autocommit = conn.autocommit
+        conn.autocommit = sqlite3.LEGACY_TRANSACTION_CONTROL
         try:
             conn.execute("BEGIN IMMEDIATE")
             yield
         except Exception:
             conn.rollback()
             raise
-        else:
-            conn.commit()
+        finally:
+            conn.autocommit = autocommit
 
     def close(self) -> None:
         if hasattr(self._thread_local, "conn"):
