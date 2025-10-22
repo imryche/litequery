@@ -227,14 +227,14 @@ class Litequery:
 
         return query_method
 
-    def raw(self, sql: str, **kwargs):
-        return self._execute_query(sql, Op.SELECT, kwargs)
+    def raw(self, sql: str, **parameters):
+        return self._execute_query(sql, Op.SELECT, parameters)
 
-    def raw_one(self, sql: str, **kwargs):
-        return self._execute_query(sql, Op.SELECT_ONE, kwargs)
+    def raw_one(self, sql: str, **parameters):
+        return self._execute_query(sql, Op.SELECT_ONE, parameters)
 
-    def raw_value(self, sql: str, **kwargs):
-        return self._execute_query(sql, Op.SELECT_VALUE, kwargs)
+    def raw_value(self, sql: str, **parameters):
+        return self._execute_query(sql, Op.SELECT_VALUE, parameters)
 
     @contextmanager
     def transaction(self):
