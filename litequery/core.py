@@ -176,7 +176,7 @@ class Litequery:
             autocommit=True,
         )
         conn.row_factory = row_factory
-        pragmas = (f"pragma {p} = {v}" for p, v in self.PRAGMAS)
+        pragmas = (f"PRAGMA {p} = {v}" for p, v in self.PRAGMAS)
         conn.executescript(";".join(pragmas))
         return conn
 
