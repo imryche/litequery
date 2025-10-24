@@ -6,7 +6,7 @@ import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -38,18 +38,8 @@ class Row:
             dups = [c for c in columns if columns.count(c) > 1]
             raise ValueError(f"Duplicate columns: {set(dups)}. Use AS to alias.")
 
-        self._values = tuple(
-            self._parse_datetime(v) if isinstance(v, str) else v for v in values
-        )
+        self._values = values
         self._index = {c: i for i, c in enumerate(columns)}
-
-    def _parse_datetime(self, value: str):
-        if 19 <= len(value) <= 32 and value[0].isdigit():
-            try:
-                return datetime.fromisoformat(value)
-            except ValueError:
-                pass
-        return value
 
     def _available_columns(self) -> str:
         return ", ".join([f"'{c}'" for c in self._index.keys()])
@@ -154,6 +144,16 @@ def row_factory(cursor, row):
     return Row(columns, row)
 
 
+def adapt_datetime(value: datetime):
+    if value.tzinfo:
+        value = value.astimezone(UTC)
+    return value.replace(tzinfo=None).isoformat(sep=" ")
+
+
+def convert_datetime(value: bytes):
+    return datetime.fromisoformat(value.decode())
+
+
 class Litequery:
     PRAGMAS = [
         ("journal_mode", "wal"),
@@ -169,11 +169,15 @@ class Litequery:
         self._thread_local = threading.local()
         self._create_methods(queries)
 
+        sqlite3.register_adapter(datetime, adapt_datetime)
+        sqlite3.register_converter("datetime", convert_datetime)
+
     def _create_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(
             self.config.database_path,
             timeout=30,
             autocommit=True,
+            detect_types=sqlite3.PARSE_COLNAMES | sqlite3.PARSE_DECLTYPES,
         )
         conn.row_factory = row_factory
         pragmas = (f"PRAGMA {p} = {v}" for p, v in self.PRAGMAS)

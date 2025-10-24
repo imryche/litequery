@@ -1,29 +1,30 @@
 -- name: get_all_users
 select
-    *
+  *
 from
-    users;
+  users;
 
 -- name: get_user_by_id^
 select
-    *
+  *
 from
-    users
+  users
 where
-    id = :id;
+  id = :id;
 
 -- name: get_last_user_id$
 select
-    id
+  id
 from
-    users
+  users
 order by
-    id desc;
+  id desc;
 
 -- name: insert_user<!
-insert into users (name, email)
-    values (:name, :email);
+insert into
+  users (name, email)
+values
+  (:name, :email);
 
 -- name: delete_all_users!
 delete from users;
-
