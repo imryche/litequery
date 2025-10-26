@@ -1,4 +1,5 @@
 import glob
+import inspect
 import os
 import re
 import sqlite3
@@ -8,6 +9,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import Enum
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,12 @@ class Query:
     sql: str
     args: list
     op: Op = Op.SELECT
+
+
+@lru_cache(maxsize=128)
+def _get_fields(cls):
+    sig = inspect.signature(cls)
+    return {p.name for p in sig.parameters.values() if p.name != "self"}
 
 
 class Row:
@@ -91,12 +99,13 @@ class Row:
         return dict(zip(self._index.keys(), self._values))
 
     def into(self, cls):
-        return cls(**self.to_dict())
+        fields = _get_fields(cls)
+        return cls(**{k: v for k, v in self.to_dict().items() if k in fields})
 
 
 class Rows(list):
     def into(self, cls):
-        return Rows([cls(**row.to_dict()) for row in self])
+        return Rows([row.into(cls) for row in self])
 
 
 def parse_file_queries(file_path):

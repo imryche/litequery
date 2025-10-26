@@ -25,14 +25,16 @@ def test_select_one(lq):
     assert user.email == "alice@example.com"
 
 
-def test_select_into(lq):
+def test_select_one_into(lq):
     user = lq.get_user_by_id(id=1).into(User)
     assert isinstance(user, User)
+    assert user.name == "Alice"
 
 
-def test_select_one_into(lq):
+def test_select_into(lq):
     users = lq.get_all_users().into(User)
     assert isinstance(users[0], User)
+    assert users[0].name == "Alice"
 
 
 def test_select_value(lq):
