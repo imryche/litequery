@@ -184,6 +184,16 @@ class Litequery:
         conn.executescript(";".join(pragmas))
         return conn
 
+    def _reset_connection(self):
+        if not hasattr(self._thread_local, "conn"):
+            return
+        try:
+            self._thread_local.conn.close()
+        except Exception:
+            pass
+        finally:
+            del self._thread_local.conn
+
     def _get_connection(self) -> sqlite3.Connection:
         if not hasattr(self._thread_local, "conn"):
             self._thread_local.conn = self._create_connection()
@@ -247,7 +257,6 @@ class Litequery:
         if conn.in_transaction:
             raise RuntimeError("Nested transactions are not supported")
 
-        autocommit = conn.autocommit
         conn.autocommit = sqlite3.LEGACY_TRANSACTION_CONTROL
         try:
             conn.execute("BEGIN IMMEDIATE")
@@ -256,7 +265,7 @@ class Litequery:
             conn.rollback()
             raise
         finally:
-            conn.autocommit = autocommit
+            conn.autocommit = True
 
     def close(self) -> None:
         if hasattr(self._thread_local, "conn"):
