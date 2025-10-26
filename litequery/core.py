@@ -184,16 +184,6 @@ class Litequery:
         conn.executescript(";".join(pragmas))
         return conn
 
-    def _reset_connection(self):
-        if not hasattr(self._thread_local, "conn"):
-            return
-        try:
-            self._thread_local.conn.close()
-        except Exception:
-            pass
-        finally:
-            del self._thread_local.conn
-
     def _get_connection(self) -> sqlite3.Connection:
         if not hasattr(self._thread_local, "conn"):
             self._thread_local.conn = self._create_connection()
