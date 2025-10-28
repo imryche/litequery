@@ -211,6 +211,29 @@ class Litequery:
                     )
             setattr(self, query.name, self._create_method(query))
 
+    def _expand_parameters(self, sql: str, parameters: dict):
+        if not any(isinstance(v, (list, tuple)) for v in parameters.values()):
+            return sql, parameters
+
+        expanded_sql = sql
+        expanded_parameters = {}
+
+        for key, value in parameters.items():
+            if isinstance(value, (list, tuple)):
+                if len(value) == 0:
+                    raise ValueError(
+                        f"Parameter '{key}' is an empty {type(value).__name__}. "
+                        "At least one value is required."
+                    )
+                placeholders = ", ".join(f":{key}_{i}" for i in range(len(value)))
+                expanded_sql = expanded_sql.replace(f":{key}", placeholders)
+                for i, item in enumerate(value):
+                    expanded_parameters[f"{key}_{i}"] = item
+            else:
+                expanded_parameters[key] = value
+
+        return expanded_sql, expanded_parameters
+
     def _execute_query(
         self,
         sql: str,
@@ -219,6 +242,8 @@ class Litequery:
     ):
         if not parameters:
             parameters = {}
+
+        sql, parameters = self._expand_parameters(sql, parameters)
 
         conn = self._get_connection()
         cursor = conn.execute(sql, parameters)

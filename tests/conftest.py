@@ -27,6 +27,7 @@ def lq(tmp_path):
             );
             insert into users (id, name, email) values (1, 'Alice', 'alice@example.com');
             insert into users (id, name, email) values (2, 'Bob', 'bob@example.com');
+            insert into users (id, name, email) values (3, 'Charlie', 'charlie@example.com');
             insert into events (user_id, name) values (1, 'user_logged_in');
             insert into events (user_id, name) values (2, 'password_changed');
         """)

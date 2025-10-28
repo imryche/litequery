@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+import pytest
+
 
 @dataclass
 class User:
@@ -13,11 +15,25 @@ class User:
 def test_select(lq):
     users = lq.get_all_users()
 
-    assert len(users) == 2
+    assert len(users) == 3
     assert users[0].name == "Alice"
     assert isinstance(users[0].created_at, datetime)
     assert users[1].name == "Bob"
     assert isinstance(users[1].created_at, datetime)
+    assert users[2].name == "Charlie"
+    assert isinstance(users[2].created_at, datetime)
+
+
+def test_select_in(lq):
+    users = lq.raw("select * from users where id in (:ids)", ids=[1, 3])
+    assert len(users) == 2
+    assert users[0].name == "Alice"
+    assert users[1].name == "Charlie"
+
+
+def test_select_in_empty(lq):
+    with pytest.raises(ValueError):
+        lq.raw("select * from users where id in (:ids)", ids=[])
 
 
 def test_select_one(lq):
@@ -39,4 +55,4 @@ def test_select_into(lq):
 
 def test_select_value(lq):
     user_id = lq.get_last_user_id()
-    assert user_id == 2
+    assert user_id == 3
